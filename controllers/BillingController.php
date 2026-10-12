@@ -537,6 +537,116 @@ class BillingController {
                     return ['ok' => false, 'error' => ['code' => 'SERVER', 'message' => 'Failed to cancel bill: ' . $e->getMessage()]];
                 }
 
+            case 'deleteBill':
+                if ($user['role'] !== 'ADMIN' && !Auth::checkPermission($user, 'billing', 'delete')) {
+                    return ['ok' => false, 'error' => ['code' => 'FORBIDDEN', 'message' => 'Only Admin can permanently delete bills.']];
+                }
+
+                $billId = (int)($payload['BillID'] ?? 0);
+                $billType = $payload['BillType'] ?? 'SALE';
+                $reason = trim($payload['Reason'] ?? 'Deleted by Admin');
+
+                if ($billType === 'TV_OUT') {
+                    $stmt = $db->prepare("SELECT * FROM security_refunds WHERE RefundID = ?");
+                    $stmt->execute([$billId]);
+                    $ref = $stmt->fetch();
+                    if (!$ref) {
+                        return ['ok' => false, 'error' => ['code' => 'NOT_FOUND', 'message' => 'TV Out voucher not found.']];
+                    }
+
+                    $db->beginTransaction();
+                    try {
+                        $now = date('Y-m-d H:i:s');
+                        // Reversal 1: Reverse cylinder stock movement if returned empty cylinder was added
+                        if ((int)$ref['CylindersReturned'] > 0) {
+                            $revMov = $db->prepare("INSERT INTO stock_movements (Date, CylinderType, MovementType, Quantity, FullOrEmpty, ReferenceNo, Reason, CreatedBy, CreatedAt)
+                                VALUES (?, ?, 'STOCK_ADJUSTMENT', ?, 'EMPTY', ?, 'TV Out Deleted Reversal', ?, ?)");
+                            $revMov->execute([date('Y-m-d'), $ref['CylinderType'], -(int)$ref['CylindersReturned'], $ref['RefundNumber'], $user['userId'], $now]);
+                        }
+
+                        // Reversal 2: Reverse Cashbook outflow if paid cash
+                        if ($ref['PaymentMode'] === 'CASH' && (float)$ref['RefundAmount'] > 0) {
+                            $revCb = $db->prepare("UPDATE cashbook SET 
+                                Refunds = MAX(0, Refunds - ?),
+                                TotalOutflow = MAX(0, TotalOutflow - ?),
+                                ExpectedClosing = ExpectedClosing + ?,
+                                UpdatedAt = ?
+                                WHERE Date = ?");
+                            $revCb->execute([(float)$ref['RefundAmount'], (float)$ref['RefundAmount'], (float)$ref['RefundAmount'], $now, $ref['Date']]);
+                        }
+
+                        // Permanently remove from security_refunds
+                        $del = $db->prepare("DELETE FROM security_refunds WHERE RefundID = ?");
+                        $del->execute([$billId]);
+
+                        $db->commit();
+                        Audit::log($user['userId'], $user['username'], 'BILL_DELETE', 'billing', (string)$billId, $ref, ['reason' => $reason], "TV Out Voucher {$ref['RefundNumber']} deleted by Admin");
+                        return ['ok' => true, 'message' => "TV Out Voucher {$ref['RefundNumber']} deleted successfully."];
+                    } catch (Exception $e) {
+                        $db->rollBack();
+                        return ['ok' => false, 'error' => ['code' => 'SERVER', 'message' => 'Failed to delete TV Out voucher: ' . $e->getMessage()]];
+                    }
+                }
+
+                // Regular Bill deletion
+                $stmt = $db->prepare("SELECT * FROM bills WHERE BillID = ?");
+                $stmt->execute([$billId]);
+                $bill = $stmt->fetch();
+                if (!$bill) {
+                    return ['ok' => false, 'error' => ['code' => 'NOT_FOUND', 'message' => 'Bill not found.']];
+                }
+
+                $db->beginTransaction();
+                try {
+                    $now = date('Y-m-d H:i:s');
+
+                    // If not already cancelled, reverse stock, dues, and cashbook
+                    if ((int)$bill['IsCancelled'] === 0) {
+                        // Reverse Stock
+                        $revMov = $db->prepare("INSERT INTO stock_movements (Date, CylinderType, MovementType, Quantity, FullOrEmpty, ReferenceNo, Reason, CreatedBy, CreatedAt)
+                            SELECT ?, CylinderType, 'SALE_REVERSAL', Quantity, 'FULL_IN', ?, 'Bill Deleted Reversal', ?, ?
+                            FROM bill_items WHERE BillID = ? AND Category = 'SALE' AND CylinderType IS NOT NULL");
+                        $revMov->execute([date('Y-m-d'), $bill['BillNumber'], $user['userId'], $now, $billId]);
+
+                        // Reverse Customer Dues
+                        if ((float)$bill['PaidDues'] > 0 && $bill['CustomerID']) {
+                            $updDue = $db->prepare("UPDATE customer_dues SET Status = 'CANCELLED', WriteOffReason = 'Bill Deleted', UpdatedAt = ? WHERE BillID = ?");
+                            $updDue->execute([$now, $billId]);
+
+                            $duesPaise = (int)round(((float)$bill['PaidDues']) * 100);
+                            $updCust = $db->prepare("UPDATE customers SET 
+                                CurrentDues = MAX(0, CurrentDues - ?), 
+                                CurrentDuesPaise = MAX(0, CurrentDuesPaise - ?),
+                                LifetimeValue = MAX(0, LifetimeValue - ?),
+                                UpdatedAt = ?
+                                WHERE CustomerID = ?");
+                            $updCust->execute([(float)$bill['PaidDues'], $duesPaise, (float)$bill['TotalAmount'], $now, $bill['CustomerID']]);
+                        }
+
+                        // Reverse Cashbook
+                        if ((float)$bill['PaidCash'] > 0) {
+                            $revCb = $db->prepare("UPDATE cashbook SET 
+                                CounterCash = MAX(0, CounterCash - ?),
+                                TotalInflow = MAX(0, TotalInflow - ?),
+                                ExpectedClosing = MAX(0, ExpectedClosing - ?),
+                                UpdatedAt = ?
+                                WHERE Date = ?");
+                            $revCb->execute([(float)$bill['PaidCash'], (float)$bill['PaidCash'], (float)$bill['PaidCash'], $now, $bill['BillDate']]);
+                        }
+                    }
+
+                    // Soft Delete: Mark IsDeleted = 1
+                    $updDel = $db->prepare("UPDATE bills SET IsDeleted = 1, UpdatedAt = ? WHERE BillID = ?");
+                    $updDel->execute([$now, $billId]);
+
+                    $db->commit();
+                    Audit::log($user['userId'], $user['username'], 'BILL_DELETE', 'billing', (string)$billId, $bill, ['reason' => $reason], "Bill {$bill['BillNumber']} deleted by Admin");
+                    return ['ok' => true, 'message' => "Bill {$bill['BillNumber']} deleted successfully."];
+                } catch (Exception $e) {
+                    $db->rollBack();
+                    return ['ok' => false, 'error' => ['code' => 'SERVER', 'message' => 'Failed to delete bill: ' . $e->getMessage()]];
+                }
+
             case 'issueNewConnectionPackage':
                 if (!Auth::checkPermission($user, 'billing', 'create')) {
                     return ['ok' => false, 'error' => ['code' => 'FORBIDDEN', 'message' => 'Permission denied.']];

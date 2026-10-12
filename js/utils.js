@@ -151,10 +151,7 @@ export const utils = {
     if (company && company.LogoBase64 && company.LogoMimeType) {
       element.innerHTML = `<img src="data:${company.LogoMimeType};base64,${company.LogoBase64}" alt="${company.CompanyName || 'Logo'}" class="company-logo-img" style="max-width:100%; max-height:100%; object-fit:contain;">`;
     } else {
-      const initials = company && company.CompanyName
-        ? company.CompanyName.split(' ').map(w => w[0]).join('').substring(0, 3).toUpperCase()
-        : fallbackText;
-      element.innerHTML = `<div class="logo-fallback" style="width:100%; height:100%;">${initials}</div>`;
+      element.innerHTML = `<img src="favicon.svg" alt="HP Gas" class="company-logo-img" style="width:100%; height:100%; object-fit:contain; border-radius:50%;" onerror="this.outerHTML='<div class=\\'logo-fallback\\'>HP</div>'">`;
     }
   }
 };

@@ -248,13 +248,21 @@ export const billingModule = {
                     <a href="#" id="pos-calc-hppay-btn" style="font-size:11px; color:var(--primary); text-decoration:none;"><i class="fa-solid fa-calculator"></i> Calc by Count</a>
                   </label>
                   <input type="number" id="pos-pay-hppay" class="form-control num-font" value="0" min="0" step="any">
-                  <div id="pos-hppay-calc-box" style="display:none; margin-top:6px; padding:6px 10px; background:rgba(233,69,96,0.06); border-radius:6px; border:1px solid rgba(233,69,96,0.2); font-size:11.5px;">
-                    <div style="display:flex; align-items:center; gap:6px;">
+                  <div id="pos-hppay-calc-box" style="display:none; margin-top:6px; padding:8px 10px; background:rgba(233,69,96,0.06); border-radius:6px; border:1px solid rgba(233,69,96,0.2); font-size:11.5px;">
+                    <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
                       <span>Count:</span>
                       <input type="number" id="pos-hppay-count-input" class="form-control num-font" style="width:55px; height:26px; padding:2px 6px; font-size:12px;" min="0" value="0">
                       <span>=</span>
                       <span id="pos-hppay-calc-preview" style="font-weight:700; color:#e94560;">₹0.00</span>
                       <button type="button" id="pos-hppay-apply-btn" class="btn btn-primary" style="padding:2px 8px; font-size:11px; height:26px; margin-left:auto;">Apply</button>
+                    </div>
+                    <!-- Dynamic HPCL 6-Digit Consumer Numbers Grid -->
+                    <div id="pos-hppay-cno-box" style="display:none; border-top:1px dashed rgba(233,69,96,0.25); padding-top:6px;">
+                      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <span style="font-weight:700; color:#b91c1c; font-size:11px;"><i class="fa-solid fa-users"></i> Consumer Nos (6-Digit):</span>
+                        <span id="pos-hppay-cno-badge" class="badge" style="background:#e94560; color:#fff; font-size:10px;">0 / 0</span>
+                      </div>
+                      <div id="pos-hppay-cno-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:6px; max-height:140px; overflow-y:auto; padding:2px;"></div>
                     </div>
                   </div>
                 </div>
@@ -441,6 +449,15 @@ export const billingModule = {
                     </select>
                     <input type="number" id="tv-charge-imprest" class="form-control num-font" value="0.00" min="0" step="any" placeholder="Amount">
                   </div>
+                </div>
+
+                <!-- Extra Dynamic Deductions List -->
+                <div id="tv-extra-deductions-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+
+                <div style="margin-top:2px;">
+                  <button type="button" id="tv-add-deduction-btn" class="btn btn-outline btn-xs" style="color:#b91c1c; border-color:#fca5a5; font-size:11.5px; font-weight:700;">
+                    <i class="fa-solid fa-plus"></i> Add Extra Deduction / Product Fee
+                  </button>
                 </div>
 
                 <div class="form-group" style="margin-bottom:0; border-top:1px dashed #fecaca; padding-top:8px;">
@@ -682,7 +699,11 @@ export const billingModule = {
     const tvOut = Math.max(0, parseFloat(document.getElementById('tv-charge-tvout')?.value) || 0);
     const admin = Math.max(0, parseFloat(document.getElementById('tv-charge-admin')?.value) || 0);
     const imprest = Math.max(0, parseFloat(document.getElementById('tv-charge-imprest')?.value) || 0);
-    const totalDed = tvOut + admin + imprest;
+    let extraDed = 0;
+    document.querySelectorAll('.tv-extra-ded-rate').forEach(inp => {
+      extraDed += Math.max(0, parseFloat(inp.value) || 0);
+    });
+    const totalDed = tvOut + admin + imprest + extraDed;
 
     const dedEl = document.getElementById('tv-deduction-total');
     if (dedEl) dedEl.value = totalDed.toFixed(2);
@@ -693,6 +714,52 @@ export const billingModule = {
 
     if (netDisp) netDisp.textContent = utils.formatCurrency(netRefund);
     if (netVal) netVal.value = netRefund.toFixed(2);
+  },
+
+  addExtraDeductionRow() {
+    const container = document.getElementById('tv-extra-deductions-list');
+    if (!container) return;
+
+    const itemOptions = availableItems.map(it => `
+      <option value="${it.ItemID}" data-rate="${it.Rate}" data-name="${utils.escapeHtml(it.ItemName)}">
+        ${utils.escapeHtml(it.ItemName)} (${utils.formatCurrency(it.Rate)})
+      </option>
+    `).join('');
+
+    const row = document.createElement('div');
+    row.className = 'tv-extra-ded-row';
+    row.style = 'display:grid; grid-template-columns: 1.4fr 1fr 28px; gap:8px; align-items:center;';
+    row.innerHTML = `
+      <select class="form-select form-select-sm tv-extra-ded-item" style="font-size:12px;">
+        <option value="" data-rate="0">-- Select Product / Fee --</option>
+        ${itemOptions}
+      </select>
+      <input type="number" class="form-control form-control-sm num-font tv-extra-ded-rate" value="0.00" min="0" step="any" placeholder="Rate">
+      <button type="button" class="btn btn-outline btn-xs tv-extra-ded-remove" style="color:var(--color-danger); border:none; height:28px; width:28px; padding:0; display:flex; align-items:center; justify-content:center;" title="Remove Fee">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    `;
+
+    const sel = row.querySelector('.tv-extra-ded-item');
+    const rateIn = row.querySelector('.tv-extra-ded-rate');
+    const remBtn = row.querySelector('.tv-extra-ded-remove');
+
+    sel.addEventListener('change', () => {
+      const opt = sel.selectedOptions[0];
+      if (opt && opt.dataset.rate !== undefined) {
+        rateIn.value = parseFloat(opt.dataset.rate).toFixed(2);
+        this.calcTvOut();
+      }
+    });
+
+    rateIn.addEventListener('input', () => this.calcTvOut());
+
+    remBtn.addEventListener('click', () => {
+      row.remove();
+      this.calcTvOut();
+    });
+
+    container.appendChild(row);
   },
 
   bindEvents() {
@@ -763,6 +830,9 @@ export const billingModule = {
       }
     });
 
+    // Add Extra Deduction Line
+    document.getElementById('tv-add-deduction-btn')?.addEventListener('click', () => this.addExtraDeductionRow());
+
     // Save TV Out Voucher Button
     document.getElementById('pos-save-tvout-btn')?.addEventListener('click', () => this.generateTvOutBill());
 
@@ -814,6 +884,50 @@ export const billingModule = {
     const hpApplyBtn = document.getElementById('pos-hppay-apply-btn');
     const hpPayInput = document.getElementById('pos-pay-hppay');
 
+    const renderHpCnoInputs = (count) => {
+      const box = document.getElementById('pos-hppay-cno-box');
+      const grid = document.getElementById('pos-hppay-cno-grid');
+      const badge = document.getElementById('pos-hppay-cno-badge');
+      if (!box || !grid) return;
+
+      if (count <= 0) {
+        box.style.display = 'none';
+        grid.innerHTML = '';
+        return;
+      }
+
+      box.style.display = 'block';
+      const existingVals = Array.from(grid.querySelectorAll('.pos-hp-cno-input')).map(i => i.value.trim());
+
+      let html = '';
+      for (let i = 0; i < count; i++) {
+        const val = existingVals[i] || '';
+        html += `
+          <div>
+            <label style="font-size:10px; color:#b91c1c; font-weight:700; margin-bottom:1px; display:block;">Cons #${i + 1}:</label>
+            <input type="text" class="form-control form-control-sm pos-hp-cno-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" placeholder="e.g. 201452" value="${val}" style="font-family:monospace; font-weight:700; text-align:center; height:26px; font-size:11.5px; padding:2px 4px;">
+          </div>
+        `;
+      }
+      grid.innerHTML = html;
+
+      const updateBadge = () => {
+        const filled = Array.from(grid.querySelectorAll('.pos-hp-cno-input')).filter(i => i.value.trim().length === 6).length;
+        if (badge) {
+          badge.textContent = `${filled} / ${count}`;
+          badge.style.background = (filled === count) ? '#16a34a' : '#e94560';
+        }
+      };
+
+      grid.querySelectorAll('.pos-hp-cno-input').forEach(inp => {
+        inp.addEventListener('input', (e) => {
+          e.target.value = e.target.value.replace(/[^0-9]/g, '');
+          updateBadge();
+        });
+      });
+      updateBadge();
+    };
+
     const updateHpPreview = () => {
       const count = parseInt(hpCountIn?.value) || 0;
       let cylRate = 1042.00;
@@ -823,6 +937,7 @@ export const billingModule = {
       }
       const amt = count * cylRate;
       if (hpPreview) hpPreview.textContent = utils.formatCurrency(amt);
+      renderHpCnoInputs(count);
       return amt;
     };
 
@@ -1262,6 +1377,13 @@ async loadCustomers() {
     const hawkerId = hawkerSelect ? hawkerSelect.value : '';
     const hawkerName = (hawkerSelect && hawkerSelect.selectedOptions[0] && hawkerSelect.value) ? (hawkerSelect.selectedOptions[0].dataset.name || '') : '';
 
+    const hpConsumerInputs = Array.from(document.querySelectorAll('.pos-hp-cno-input')).map(i => i.value.trim()).filter(Boolean);
+    let billNotes = hawkerName ? `Delivery Staff / Hawker: ${hawkerName}` : '';
+    if (hpConsumerInputs.length > 0) {
+      const hpNote = `HP Pay Consumers (${hpConsumerInputs.length}): ${hpConsumerInputs.join(', ')}`;
+      billNotes = billNotes ? (billNotes + ' | ' + hpNote) : hpNote;
+    }
+
     const payload = {
       BillDate: document.getElementById('pos-bill-date').value,
       CustomerID: custId,
@@ -1271,7 +1393,9 @@ async loadCustomers() {
       CustomerType: document.getElementById('pos-customer-type')?.value.trim() || 'DOMESTIC',
       HawkerID: hawkerId || null,
       HawkerName: hawkerName || '',
-      Notes: hawkerName ? `Delivery Staff / Hawker: ${hawkerName}` : '',
+      HPPayReference: hpConsumerInputs.length > 0 ? hpConsumerInputs.join(', ') : '',
+      HPPayConsumerDetails: hpConsumerInputs.length > 0 ? hpConsumerInputs.join(', ') : '',
+      Notes: billNotes,
       DiscountAmount: parseFloat(document.getElementById('pos-discount')?.value || 0),
       PaidCash: parseFloat(document.getElementById('pos-pay-cash')?.value || 0),
       PaidUPI: parseFloat(document.getElementById('pos-pay-upi')?.value || 0),
@@ -1371,7 +1495,23 @@ async loadCustomers() {
       RefundAmount: netRefund,
       PaymentMode: document.getElementById('tv-pay-mode')?.value || 'CASH',
       ReferenceNo: document.getElementById('tv-ref-no')?.value.trim() || '',
-      Reason: document.getElementById('tv-reason')?.value.trim() || 'TV Out Connection Surrender & Caution Money Refund',
+      Reason: (() => {
+        let r = document.getElementById('tv-reason')?.value.trim() || 'TV Out Connection Surrender & Caution Money Refund';
+        const extras = [];
+        document.querySelectorAll('.tv-extra-ded-row').forEach(row => {
+          const sel = row.querySelector('.tv-extra-ded-item');
+          const rateIn = row.querySelector('.tv-extra-ded-rate');
+          const amt = parseFloat(rateIn?.value) || 0;
+          if (amt > 0) {
+            const name = (sel && sel.selectedOptions[0] && sel.selectedOptions[0].value) ? sel.selectedOptions[0].textContent.trim() : 'Extra Fee';
+            extras.push(`${name}: ₹${amt.toFixed(2)}`);
+          }
+        });
+        if (extras.length > 0) {
+          r += ' | Extra Deductions: ' + extras.join('; ');
+        }
+        return r;
+      })(),
       VoucherType: 'TV_OUT'
     };
 
@@ -1388,6 +1528,8 @@ async loadCustomers() {
       document.getElementById('tv-cust-mobile').value = '';
       document.getElementById('tv-cust-consumerno').value = '';
       document.getElementById('tv-ref-no').value = '';
+      const extraContainer = document.getElementById('tv-extra-deductions-list');
+      if (extraContainer) extraContainer.innerHTML = '';
       this.calcTvOut();
 
       // Reload register
@@ -1444,6 +1586,10 @@ async loadCustomers() {
             <button class="action-icon delete-icon cancel-bill-action" data-id="${b.BillID}" data-no="${b.BillNumber}" title="Cancel Bill">
               <i class="fa-solid fa-ban"></i>
             </button>` : ''}
+            ${(auth.currentUser?.role === 'ADMIN' || auth.can('billing', 'delete')) ? `
+            <button class="action-icon delete-icon delete-bill-action" data-id="${b.BillID}" data-no="${b.BillNumber}" data-type="${b.BillType || 'SALE'}" style="color:var(--color-danger);" title="Delete Bill (Admin Only)">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>` : ''}
           </td>
         </tr>
       `;
@@ -1496,6 +1642,32 @@ async loadCustomers() {
           const res = await api('cancelBill', { BillID: bId, Reason: reason });
           if (res.ok) {
             ui.success(`Bill ${bNo} cancelled and stock/dues effects reversed.`);
+            this.loadRecentBills();
+          }
+        }
+      });
+    });
+
+    // Bind Delete Bill (Admin Only)
+    tbody.querySelectorAll('.delete-bill-action').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const bId = parseInt(e.currentTarget.dataset.id);
+        const bNo = e.currentTarget.dataset.no;
+        const bType = e.currentTarget.dataset.type || 'SALE';
+
+        const confirmed = await ui.confirm(
+          `Are you sure you want to permanently DELETE ${bType === 'TV_OUT' ? 'TV Out Voucher' : 'Bill'} ${bNo}?\n\nThis action is irreversible and reverses all stock and cash entries!`,
+          'Permanently Delete Bill (Admin Only)',
+          'Delete Permanently',
+          'danger'
+        );
+        if (!confirmed) return;
+
+        const reason = await ui.prompt(`Delete ${bNo}`, 'Reason for permanent deletion (e.g. Wrong Entry / Test Bill)...');
+        if (reason !== null) {
+          const res = await api('deleteBill', { BillID: bId, BillType: bType, Reason: reason || 'Deleted by Admin' }, { loaderMessage: 'Permanently deleting bill and reversing ledger...' });
+          if (res.ok) {
+            ui.success(`${bType === 'TV_OUT' ? 'TV Out Voucher' : 'Bill'} ${bNo} deleted successfully.`);
             this.loadRecentBills();
           }
         }
