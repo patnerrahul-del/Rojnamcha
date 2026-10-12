@@ -17,6 +17,12 @@ export const printEngine = {
   },
 
   getCompany() {
+    if (companyProfile && (companyProfile.LogoBase64 || companyProfile.CompanyName)) {
+      return companyProfile;
+    }
+    if (typeof window !== 'undefined' && window.companyData) {
+      return window.companyData;
+    }
     return companyProfile || {
       CompanyName: 'Shiv Shakti HP Gas',
       LegalName: 'Shiv Shakti HP Gas Agency',
@@ -1950,6 +1956,23 @@ export const printEngine = {
     const photoSrc = emp.Photo ? emp.Photo : null;
     const roleTitle = (emp.Role || 'Hawker').toUpperCase();
     const badgeColor = (emp.Role === 'Hawker') ? '#d97706' : '#2563eb';
+    const hasCustomLogo = Boolean(c && c.LogoBase64 && c.LogoMimeType);
+
+    const agencyLogoHtml = hasCustomLogo
+      ? `<img src="data:${c.LogoMimeType};base64,${c.LogoBase64}" class="id-agency-logo" alt="Agency Logo" style="height:36px; max-width:54px; object-fit:contain; border-radius:4px; background:#ffffff; padding:2px; box-shadow:0 1px 3px rgba(0,0,0,0.25); flex-shrink:0;">`
+      : '';
+
+    const hpGasLogoSvg = `
+      <svg width="34" height="34" viewBox="0 0 120 120" style="display:block; flex-shrink:0; border-radius:50%; box-shadow:0 1px 4px rgba(0,0,0,0.25);">
+        <circle cx="60" cy="60" r="58" fill="#d97706" />
+        <circle cx="60" cy="60" r="54" fill="#ffffff" />
+        <circle cx="60" cy="60" r="48" fill="#001f3f" />
+        <circle cx="60" cy="60" r="43" fill="#c2410c" />
+        <circle cx="60" cy="60" r="39" fill="#002b5c" />
+        <text x="60" y="66" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-size="34" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="1">HP</text>
+        <text x="60" y="88" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-size="10" font-weight="800" fill="#fde047" text-anchor="middle" letter-spacing="1.5">GAS</text>
+      </svg>
+    `;
 
     return `
       <div class="doc-sheet id-card-sheet" style="max-width:800px; padding:24px; background:#f8fafc; font-family:'Plus Jakarta Sans', Arial, sans-serif;">
@@ -1978,22 +2001,23 @@ export const printEngine = {
           .id-card-header {
             background: linear-gradient(135deg, #001f3f 0%, #002b5c 100%);
             color: #ffffff;
-            padding: 12px 14px 10px;
+            padding: 10px 12px;
             text-align: center;
             border-bottom: 3px solid #f59e0b;
             position: relative;
           }
           .id-card-header h3 {
             margin: 0;
-            font-size: 13px;
+            font-size: 12.5px;
             font-weight: 800;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.3px;
             text-transform: uppercase;
             color: #ffffff;
+            line-height: 1.25;
           }
           .id-card-header p {
             margin: 2px 0 0;
-            font-size: 9px;
+            font-size: 8.5px;
             color: #93c5fd;
             font-weight: 600;
           }
@@ -2004,6 +2028,8 @@ export const printEngine = {
             flex-direction: column;
             align-items: center;
             text-align: center;
+            position: relative;
+            background: #ffffff;
           }
           .id-photo-frame {
             width: 96px;
@@ -2106,6 +2132,16 @@ export const printEngine = {
               box-shadow: none !important;
               border: 1.5px solid #000 !important;
               page-break-inside: avoid;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            .id-card-header {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            .id-agency-logo, img {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
           }
         </style>
@@ -2119,17 +2155,22 @@ export const printEngine = {
           <!-- CARD FRONT -->
           <div class="id-card-badge">
             <div class="id-card-header">
-              <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:4px;">
-                <svg width="22" height="22" viewBox="0 0 120 120">
-                  <circle cx="60" cy="60" r="58" fill="#d97706" />
-                  <circle cx="60" cy="60" r="54" fill="#ffffff" />
-                  <circle cx="60" cy="60" r="48" fill="#001f3f" />
-                  <text x="60" y="66" font-family="Arial, sans-serif" font-size="34" font-weight="900" fill="#ffffff" text-anchor="middle">HP</text>
-                  <text x="60" y="88" font-family="Arial, sans-serif" font-size="10" font-weight="800" fill="#fde047" text-anchor="middle">GAS</text>
-                </svg>
-                <h3>${utils.escapeHtml(c.AgencyName || c.CompanyName)}</h3>
-              </div>
-              <p>DISTRIBUTOR CODE: ${utils.escapeHtml(c.DistributorCode || 'HP-PDL-8842')}</p>
+              ${hasCustomLogo ? `
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                ${agencyLogoHtml}
+                <div style="flex:1; text-align:center;">
+                  <h3>${utils.escapeHtml(c.AgencyName || c.CompanyName)}</h3>
+                  <p>DISTRIBUTOR CODE: <strong>${utils.escapeHtml(c.DistributorCode || 'HP-PDL-8842')}</strong></p>
+                </div>
+                ${hpGasLogoSvg}
+              </div>` : `
+              <div style="display:flex; align-items:center; justify-content:center; gap:10px;">
+                ${hpGasLogoSvg}
+                <div style="text-align:left;">
+                  <h3>${utils.escapeHtml(c.AgencyName || c.CompanyName)}</h3>
+                  <p>DISTRIBUTOR CODE: <strong>${utils.escapeHtml(c.DistributorCode || 'HP-PDL-8842')}</strong></p>
+                </div>
+              </div>`}
             </div>
 
             <div class="id-card-body">
@@ -2177,9 +2218,14 @@ export const printEngine = {
 
           <!-- CARD BACK -->
           <div class="id-card-badge">
-            <div class="id-card-header" style="background:#002b5c;">
-              <h3>IDENTITY CARD - TERMS & VERIFICATION</h3>
-              <p>HPCL DISTRIBUTORSHIP VERIFICATION</p>
+            <div class="id-card-header" style="background: linear-gradient(135deg, #002b5c 0%, #001f3f 100%);">
+              <div style="display:flex; align-items:center; justify-content:center; gap:8px;">
+                ${hasCustomLogo ? `<img src="data:${c.LogoMimeType};base64,${c.LogoBase64}" style="height:26px; max-width:40px; object-fit:contain; background:#ffffff; padding:2px; border-radius:3px; flex-shrink:0;" alt="Agency Logo">` : hpGasLogoSvg}
+                <div>
+                  <h3 style="font-size:11.5px;">IDENTITY CARD - TERMS & VERIFICATION</h3>
+                  <p>HPCL DISTRIBUTORSHIP VERIFICATION</p>
+                </div>
+              </div>
             </div>
 
             <div class="id-card-body" style="text-align:left;">
@@ -2218,8 +2264,11 @@ export const printEngine = {
               </div>
 
               <div class="id-card-footer" style="margin-top:8px;">
-                <div>
-                  <small style="color:#64748b;">GSTIN: ${utils.escapeHtml(c.GSTIN || '10ABCDE1234F1Z5')}</small>
+                <div style="display:flex; align-items:center; gap:6px;">
+                  ${hasCustomLogo ? `<img src="data:${c.LogoMimeType};base64,${c.LogoBase64}" style="height:18px; max-width:28px; object-fit:contain; opacity:0.85; background:#fff; padding:1px; border-radius:2px;" alt="Logo Seal">` : ''}
+                  <div>
+                    <small style="color:#64748b; font-size:8.5px; display:block;">GSTIN: ${utils.escapeHtml(c.GSTIN || '10ABCDE1234F1Z5')}</small>
+                  </div>
                 </div>
                 <div class="id-sign-box">
                   <div style="height:16px; border-bottom:1px solid #475569; margin-bottom:2px; width:70px;"></div>

@@ -41,6 +41,7 @@ async function loadCompanyBranding() {
   const res = await api('getMeta', {}, { loader: false, silentError: true });
   if (res.ok && res.data && res.data.company) {
     companyData = res.data.company;
+    window.companyData = companyData;
     printEngine.setCompany(companyData);
     companyRenderer(companyData);
   }

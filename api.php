@@ -103,7 +103,7 @@ try {
 
         case 'getMeta':
             $db = Database::getConnection();
-            $comp = $db->query("SELECT CompanyName, LegalName, AgencyName, DistributorCode, Phone, Email, LogoBase64, LogoMimeType FROM companies LIMIT 1")->fetch();
+            $comp = $db->query("SELECT * FROM companies LIMIT 1")->fetch();
             $response = [
                 'ok' => true,
                 'data' => [
