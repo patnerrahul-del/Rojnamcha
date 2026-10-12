@@ -161,10 +161,13 @@ try {
         case 'listEntries':
         case 'listBills':
         case 'getBill':
+        case 'getTvOutBill':
         case 'addEntry':
         case 'addBill':
         case 'cancelBill':
+        case 'deleteBill':
         case 'issueNewConnectionPackage':
+        case 'saveTvOutBill':
         case 'refundSecurityDeposit':
         case 'listSecurityRefunds':
             $response = BillingController::handle($action, $payload, $currentUser);
@@ -195,6 +198,7 @@ try {
         case 'saveVendorLog':
         case 'saveDispatch':
         case 'getHawkerPerformance':
+        case 'listHPPayTransactions':
             $response = DispatchController::handle($action, $payload, $currentUser);
             break;
 
@@ -205,6 +209,9 @@ try {
         case 'getStockLedger':
         case 'receivePlantTruck':
         case 'listPlantReceipts':
+        case 'recordEMRReceipt':
+        case 'recordHpclCylinderReturn':
+        case 'listHpclReturns':
             $response = StockController::handle($action, $payload, $currentUser);
             break;
 

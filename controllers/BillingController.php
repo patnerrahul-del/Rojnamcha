@@ -506,11 +506,12 @@ class BillingController {
                         $updDue = $db->prepare("UPDATE customer_dues SET Status = 'CANCELLED', WriteOffReason = 'Bill Cancelled', UpdatedAt = ? WHERE BillID = ?");
                         $updDue->execute([$now, $billId]);
 
+                        $maxFn = ($db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') ? 'GREATEST' : 'MAX';
                         $duesPaise = (int)round(((float)$bill['PaidDues']) * 100);
                         $updCust = $db->prepare("UPDATE customers SET 
-                            CurrentDues = MAX(0, CurrentDues - ?), 
-                            CurrentDuesPaise = MAX(0, CurrentDuesPaise - ?),
-                            LifetimeValue = MAX(0, LifetimeValue - ?),
+                            CurrentDues = {$maxFn}(0, CurrentDues - ?), 
+                            CurrentDuesPaise = {$maxFn}(0, CurrentDuesPaise - ?),
+                            LifetimeValue = {$maxFn}(0, LifetimeValue - ?),
                             UpdatedAt = ?
                             WHERE CustomerID = ?");
                         $updCust->execute([(float)$bill['PaidDues'], $duesPaise, (float)$bill['TotalAmount'], $now, $bill['CustomerID']]);
@@ -518,10 +519,11 @@ class BillingController {
 
                     // Reversal 3: Reverse Cashbook Counter Cash
                     if ((float)$bill['PaidCash'] > 0) {
+                        $maxFn = ($db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') ? 'GREATEST' : 'MAX';
                         $revCb = $db->prepare("UPDATE cashbook SET 
-                            CounterCash = MAX(0, CounterCash - ?),
-                            TotalInflow = MAX(0, TotalInflow - ?),
-                            ExpectedClosing = MAX(0, ExpectedClosing - ?),
+                            CounterCash = {$maxFn}(0, CounterCash - ?),
+                            TotalInflow = {$maxFn}(0, TotalInflow - ?),
+                            ExpectedClosing = {$maxFn}(0, ExpectedClosing - ?),
                             UpdatedAt = ?
                             WHERE Date = ?");
                         $revCb->execute([(float)$bill['PaidCash'], (float)$bill['PaidCash'], (float)$bill['PaidCash'], $now, $bill['BillDate']]);
@@ -566,9 +568,10 @@ class BillingController {
 
                         // Reversal 2: Reverse Cashbook outflow if paid cash
                         if ($ref['PaymentMode'] === 'CASH' && (float)$ref['RefundAmount'] > 0) {
+                            $maxFn = ($db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') ? 'GREATEST' : 'MAX';
                             $revCb = $db->prepare("UPDATE cashbook SET 
-                                Refunds = MAX(0, Refunds - ?),
-                                TotalOutflow = MAX(0, TotalOutflow - ?),
+                                Refunds = {$maxFn}(0, Refunds - ?),
+                                TotalOutflow = {$maxFn}(0, TotalOutflow - ?),
                                 ExpectedClosing = ExpectedClosing + ?,
                                 UpdatedAt = ?
                                 WHERE Date = ?");
@@ -613,11 +616,12 @@ class BillingController {
                             $updDue = $db->prepare("UPDATE customer_dues SET Status = 'CANCELLED', WriteOffReason = 'Bill Deleted', UpdatedAt = ? WHERE BillID = ?");
                             $updDue->execute([$now, $billId]);
 
+                            $maxFn = ($db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') ? 'GREATEST' : 'MAX';
                             $duesPaise = (int)round(((float)$bill['PaidDues']) * 100);
                             $updCust = $db->prepare("UPDATE customers SET 
-                                CurrentDues = MAX(0, CurrentDues - ?), 
-                                CurrentDuesPaise = MAX(0, CurrentDuesPaise - ?),
-                                LifetimeValue = MAX(0, LifetimeValue - ?),
+                                CurrentDues = {$maxFn}(0, CurrentDues - ?), 
+                                CurrentDuesPaise = {$maxFn}(0, CurrentDuesPaise - ?),
+                                LifetimeValue = {$maxFn}(0, LifetimeValue - ?),
                                 UpdatedAt = ?
                                 WHERE CustomerID = ?");
                             $updCust->execute([(float)$bill['PaidDues'], $duesPaise, (float)$bill['TotalAmount'], $now, $bill['CustomerID']]);
@@ -625,10 +629,11 @@ class BillingController {
 
                         // Reverse Cashbook
                         if ((float)$bill['PaidCash'] > 0) {
+                            $maxFn = ($db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') ? 'GREATEST' : 'MAX';
                             $revCb = $db->prepare("UPDATE cashbook SET 
-                                CounterCash = MAX(0, CounterCash - ?),
-                                TotalInflow = MAX(0, TotalInflow - ?),
-                                ExpectedClosing = MAX(0, ExpectedClosing - ?),
+                                CounterCash = {$maxFn}(0, CounterCash - ?),
+                                TotalInflow = {$maxFn}(0, TotalInflow - ?),
+                                ExpectedClosing = {$maxFn}(0, ExpectedClosing - ?),
                                 UpdatedAt = ?
                                 WHERE Date = ?");
                             $revCb->execute([(float)$bill['PaidCash'], (float)$bill['PaidCash'], (float)$bill['PaidCash'], $now, $bill['BillDate']]);

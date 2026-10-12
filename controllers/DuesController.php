@@ -132,9 +132,10 @@ class DuesController {
                     ]);
 
                     // Deduct Customer Current Dues
+                    $maxFn = ($db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') ? 'GREATEST' : 'MAX';
                     $updCust = $db->prepare("UPDATE customers SET 
-                        CurrentDues = MAX(0, CurrentDues - ?),
-                        CurrentDuesPaise = MAX(0, CurrentDuesPaise - ?),
+                        CurrentDues = {$maxFn}(0, CurrentDues - ?),
+                        CurrentDuesPaise = {$maxFn}(0, CurrentDuesPaise - ?),
                         UpdatedAt = ?
                         WHERE CustomerID = ?");
                     $updCust->execute([$amount, $paymentPaise, $now, $due['CustomerID']]);
@@ -214,9 +215,10 @@ class DuesController {
                     $upd->execute([$reason, $user['userId'], $now, $now, $dueId]);
 
                     // Deduct remaining from customer dues
+                    $maxFn = ($db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') ? 'GREATEST' : 'MAX';
                     $updCust = $db->prepare("UPDATE customers SET 
-                        CurrentDues = MAX(0, CurrentDues - ?),
-                        CurrentDuesPaise = MAX(0, CurrentDuesPaise - ?),
+                        CurrentDues = {$maxFn}(0, CurrentDues - ?),
+                        CurrentDuesPaise = {$maxFn}(0, CurrentDuesPaise - ?),
                         UpdatedAt = ?
                         WHERE CustomerID = ?");
                     $updCust->execute([$remAmt, $remPaise, $now, $due['CustomerID']]);
