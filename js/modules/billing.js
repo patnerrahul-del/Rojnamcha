@@ -412,19 +412,37 @@ export const billingModule = {
               <div class="card-header" style="background:#fee2e2; padding:10px 14px;">
                 <div class="card-title" style="font-size:13px; color:#b91c1c;"><i class="fa-solid fa-scissors"></i> Deductions Cut From Security (₹)</div>
               </div>
-              <div class="card-body" style="padding:14px;">
-                <div class="form-group" style="margin-bottom:8px;">
-                  <label class="form-label" style="font-size:11.5px; color:#b91c1c;">TV Out Charge (₹) *</label>
-                  <input type="number" id="tv-charge-tvout" class="form-control num-font" value="100.00" min="0" step="any">
+              <div class="card-body" style="padding:14px; display:flex; flex-direction:column; gap:10px;">
+                <div>
+                  <label class="form-label" style="font-size:11.5px; color:#b91c1c; margin-bottom:4px;">TV Out Charge (₹) *</label>
+                  <div style="display:grid; grid-template-columns: 1.4fr 1fr; gap:8px;">
+                    <select id="tv-item-tvout" class="form-select form-select-sm" style="font-size:12px;">
+                      <option value="" data-rate="100.00">Standard TV Out (₹100)</option>
+                    </select>
+                    <input type="number" id="tv-charge-tvout" class="form-control num-font" value="100.00" min="0" step="any" placeholder="Rate">
+                  </div>
                 </div>
-                <div class="form-group" style="margin-bottom:8px;">
-                  <label class="form-label" style="font-size:11.5px; color:#b91c1c;">Administration Charge (₹) *</label>
-                  <input type="number" id="tv-charge-admin" class="form-control num-font" value="100.00" min="0" step="any">
+
+                <div>
+                  <label class="form-label" style="font-size:11.5px; color:#b91c1c; margin-bottom:4px;">Administration Charge (₹) *</label>
+                  <div style="display:grid; grid-template-columns: 1.4fr 1fr; gap:8px;">
+                    <select id="tv-item-admin" class="form-select form-select-sm" style="font-size:12px;">
+                      <option value="" data-rate="100.00">Standard Admin Fee (₹100)</option>
+                    </select>
+                    <input type="number" id="tv-charge-admin" class="form-control num-font" value="100.00" min="0" step="any" placeholder="Rate">
+                  </div>
                 </div>
-                <div class="form-group" style="margin-bottom:8px;">
-                  <label class="form-label" style="font-size:11.5px; color:#b91c1c;">Imprest Fund / Custom (₹)</label>
-                  <input type="number" id="tv-charge-imprest" class="form-control num-font" value="0.00" min="0" step="any" placeholder="Custom deduction">
+
+                <div>
+                  <label class="form-label" style="font-size:11.5px; color:#b91c1c; margin-bottom:4px;">Imprest Fund / Custom Deduction (₹)</label>
+                  <div style="display:grid; grid-template-columns: 1.4fr 1fr; gap:8px;">
+                    <select id="tv-item-imprest" class="form-select form-select-sm" style="font-size:12px;">
+                      <option value="" data-rate="0.00">-- Select Fund / Item (₹0) --</option>
+                    </select>
+                    <input type="number" id="tv-charge-imprest" class="form-control num-font" value="0.00" min="0" step="any" placeholder="Amount">
+                  </div>
                 </div>
+
                 <div class="form-group" style="margin-bottom:0; border-top:1px dashed #fecaca; padding-top:8px;">
                   <label class="form-label" style="font-size:12px; font-weight:800; color:#b91c1c;">Total Deductions Cut (₹)</label>
                   <input type="number" id="tv-deduction-total" class="form-control num-font" value="200.00" readonly style="font-weight:800; background:#fff; color:#b91c1c;">
@@ -710,6 +728,25 @@ export const billingModule = {
       document.getElementById(id)?.addEventListener('change', () => this.calcTvOut());
     });
 
+    // TV Out deduction product selection auto-fill
+    [
+      { sel: 'tv-item-tvout', inp: 'tv-charge-tvout' },
+      { sel: 'tv-item-admin', inp: 'tv-charge-admin' },
+      { sel: 'tv-item-imprest', inp: 'tv-charge-imprest' }
+    ].forEach(({ sel, inp }) => {
+      document.getElementById(sel)?.addEventListener('change', (e) => {
+        const opt = e.target.selectedOptions[0];
+        const rateIn = document.getElementById(inp);
+        if (opt && rateIn) {
+          const rate = opt.dataset.rate !== undefined ? parseFloat(opt.dataset.rate) : 0;
+          if (!isNaN(rate)) {
+            rateIn.value = rate.toFixed(2);
+            this.calcTvOut();
+          }
+        }
+      });
+    });
+
     // TV Out Customer Select Auto-fill
     document.getElementById('tv-cust-select')?.addEventListener('change', (e) => {
       const sel = e.target;
@@ -859,6 +896,42 @@ export const billingModule = {
             </option>
           `).join('');
       }
+
+      // Populate TV Out deduction item selectors
+      const tvOutSel = document.getElementById('tv-item-tvout');
+      const adminSel = document.getElementById('tv-item-admin');
+      const imprestSel = document.getElementById('tv-item-imprest');
+
+      const itemOptions = availableItems.map(it => `
+        <option value="${it.ItemID}" data-rate="${it.Rate}">
+          ${utils.escapeHtml(it.ItemName)} (${utils.formatCurrency(it.Rate)})
+        </option>
+      `).join('');
+
+      if (tvOutSel) {
+        tvOutSel.innerHTML = '<option value="" data-rate="100.00">Standard TV Out (₹100)</option>' + itemOptions;
+      }
+      if (adminSel) {
+        adminSel.innerHTML = '<option value="" data-rate="100.00">Standard Admin Fee (₹100)</option>' + itemOptions;
+        // Auto-match if user has an item like "Administrator"
+        const adminItem = availableItems.find(it => it.ItemName.toLowerCase().includes('admin'));
+        if (adminItem) {
+          adminSel.value = adminItem.ItemID;
+          const adminRateInput = document.getElementById('tv-charge-admin');
+          if (adminRateInput) adminRateInput.value = Number(adminItem.Rate).toFixed(2);
+        }
+      }
+      if (imprestSel) {
+        imprestSel.innerHTML = '<option value="" data-rate="0.00">-- Select Fund / Item (₹0) --</option>' + itemOptions;
+        // Auto-match if user has an item like "IMPRESS FUND"
+        const imprestItem = availableItems.find(it => it.ItemName.toLowerCase().includes('impress') || it.ItemName.toLowerCase().includes('imprest'));
+        if (imprestItem) {
+          imprestSel.value = imprestItem.ItemID;
+          const imprestRateInput = document.getElementById('tv-charge-imprest');
+          if (imprestRateInput && Number(imprestItem.Rate) > 0) imprestRateInput.value = Number(imprestItem.Rate).toFixed(2);
+        }
+      }
+      this.calcTvOut();
     }
   },
 
