@@ -32,8 +32,8 @@ class SettingsController {
                 }
 
                 $now = date('Y-m-d H:i:s');
-                $stmt = $db->prepare("INSERT INTO settings (SettingKey, SettingValue, UpdatedAt) VALUES (:k, :v, :u)
-                    ON CONFLICT(SettingKey) DO UPDATE SET SettingValue = excluded.SettingValue, UpdatedAt = excluded.UpdatedAt");
+                $stmt = $db->prepare(Database::adaptSql("INSERT INTO settings (SettingKey, SettingValue, UpdatedAt) VALUES (:k, :v, :u)
+                    ON CONFLICT(SettingKey) DO UPDATE SET SettingValue = excluded.SettingValue, UpdatedAt = excluded.UpdatedAt"));
 
                 foreach ($settings as $k => $v) {
                     $stmt->execute([':k' => $k, ':v' => (string)$v, ':u' => $now]);

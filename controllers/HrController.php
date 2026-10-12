@@ -166,13 +166,13 @@ class HrController {
                 $now = date('Y-m-d H:i:s');
                 $db->beginTransaction();
                 try {
-                    $upsert = $db->prepare("INSERT INTO attendance (EmpID, Date, Status, Remarks, MarkedBy, CreatedAt, UpdatedAt)
+                    $upsert = $db->prepare(Database::adaptSql("INSERT INTO attendance (EmpID, Date, Status, Remarks, MarkedBy, CreatedAt, UpdatedAt)
                         VALUES (:EmpID, :Date, :Status, :Remarks, :MarkedBy, :CreatedAt, :UpdatedAt)
                         ON CONFLICT(EmpID, Date) DO UPDATE SET
                             Status = excluded.Status,
                             Remarks = excluded.Remarks,
                             MarkedBy = excluded.MarkedBy,
-                            UpdatedAt = excluded.UpdatedAt");
+                            UpdatedAt = excluded.UpdatedAt"));
 
                     foreach ($records as $r) {
                         $upsert->execute([
@@ -322,7 +322,7 @@ class HrController {
                 $now = date('Y-m-d H:i:s');
                 $salNo = sprintf("SAL-%s-%04d", str_replace('-', '', $month), $empId);
 
-                $ins = $db->prepare("INSERT INTO salaries (
+                $ins = $db->prepare(Database::adaptSql("INSERT INTO salaries (
                     SalaryNumber, EmpID, SalaryMonth, BaseSalary, PresentDays, AttendanceAdjustment,
                     DeliveriesCount, DeliveryIncentive, AdvanceDeduction, ShortageDeduction, NetSalary, NetSalaryPaise,
                     Status, FinalizedBy, FinalizedAt, PaymentDate, PaymentMode, Remarks, CreatedAt, UpdatedAt
@@ -333,7 +333,7 @@ class HrController {
                     Status = 'FINAL',
                     FinalizedBy = excluded.FinalizedBy,
                     FinalizedAt = excluded.FinalizedAt,
-                    UpdatedAt = excluded.UpdatedAt");
+                    UpdatedAt = excluded.UpdatedAt"));
 
                 $ins->execute([
                     $salNo, $empId, $month, (float)($payload['BaseSalary'] ?? 0),

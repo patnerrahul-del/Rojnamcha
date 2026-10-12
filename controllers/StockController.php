@@ -106,7 +106,7 @@ class StockController {
                 $db->beginTransaction();
                 try {
                     $now = date('Y-m-d H:i:s');
-                    $upsert = $db->prepare("INSERT INTO cylinder_stock (
+                    $upsert = $db->prepare(Database::adaptSql("INSERT INTO cylinder_stock (
                         Date, CylinderType, OpeningFull, OpeningEmpty, PlantReceipt, EMRReceived, CounterSold, HawkerSold,
                         DefectiveReceived, SoundEmptyReceived, SentToPlant, ClosingFull, ClosingEmpty,
                         PhysicalCountFull, PhysicalCountEmpty, VarianceFull, VarianceEmpty, Remarks,
@@ -133,7 +133,7 @@ class StockController {
                         VarianceFull = excluded.VarianceFull,
                         VarianceEmpty = excluded.VarianceEmpty,
                         Remarks = excluded.Remarks,
-                        UpdatedAt = excluded.UpdatedAt");
+                        UpdatedAt = excluded.UpdatedAt"));
 
                     foreach ($entries as $e) {
                         $date = $e['Date'] ?? date('Y-m-d');

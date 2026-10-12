@@ -140,7 +140,7 @@ class CashController {
                 $now = date('Y-m-d H:i:s');
                 $db->beginTransaction();
                 try {
-                    $stmt = $db->prepare("INSERT INTO cashbook (
+                    $stmt = $db->prepare(Database::adaptSql("INSERT INTO cashbook (
                         Date, OpeningCash, CounterCash, HawkerCash, DuesCash, OtherInflow, TotalInflow,
                         Expenses, Refunds, BankDeposit, TotalOutflow, ExpectedClosing, PhysicalClosing,
                         Variance, VarianceReason, Denomination500, Denomination200, Denomination100,
@@ -174,7 +174,7 @@ class CashController {
                         Denomination20 = excluded.Denomination20,
                         Denomination10 = excluded.Denomination10,
                         DenominationCoins = excluded.DenominationCoins,
-                        UpdatedAt = excluded.UpdatedAt");
+                        UpdatedAt = excluded.UpdatedAt"));
 
                     $stmt->execute([
                         ':Date' => $date,
@@ -263,14 +263,14 @@ class CashController {
                     $updCb->execute([$user['userId'], $now, $now, $date]);
 
                     // Insert Day Closings Record
-                    $insDc = $db->prepare("INSERT INTO day_closings (
+                    $insDc = $db->prepare(Database::adaptSql("INSERT INTO day_closings (
                         Date, IsLocked, TotalBilling, TotalCashInflow, TotalDigitalInflow, TotalDuesAdded,
                         TotalDuesRecovered, TotalExpenses, TotalCylindersSold, ClosedBy, ClosedByName, ClosedAt
                     ) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(Date) DO UPDATE SET
                         IsLocked = 1, TotalBilling = excluded.TotalBilling, TotalCashInflow = excluded.TotalCashInflow,
                         ClosedBy = excluded.ClosedBy, ClosedByName = excluded.ClosedByName, ClosedAt = excluded.ClosedAt,
-                        IsUnlocked = 0");
+                        IsUnlocked = 0"));
 
                     $insDc->execute([
                         $date, (float)$bData['grossBilling'], (float)$bData['cashBilling'] + $dueRec,

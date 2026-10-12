@@ -56,6 +56,21 @@ class Database {
         self::$instance = $pdo;
     }
 
+    public static function adaptSql(string $sql): string {
+        $driver = defined('DB_DRIVER') ? DB_DRIVER : 'sqlite';
+        try {
+            if (self::$instance !== null) {
+                $driver = self::$instance->getAttribute(PDO::ATTR_DRIVER_NAME);
+            }
+        } catch (Throwable $e) {}
+
+        if ($driver === 'mysql') {
+            $sql = preg_replace('/ON\s+CONFLICT\s*\([^)]*\)\s*DO\s+UPDATE\s+SET/i', 'ON DUPLICATE KEY UPDATE', $sql);
+            $sql = preg_replace('/excluded\.(\w+)/i', 'VALUES($1)', $sql);
+        }
+        return $sql;
+    }
+
     public static function sqliteToMysql(string $sql): string {
         // Primary keys: INTEGER PRIMARY KEY AUTOINCREMENT -> INT NOT NULL AUTO_INCREMENT PRIMARY KEY
         $sql = preg_replace(
