@@ -340,21 +340,18 @@ export const employeeModule = {
         const clearBtn = document.getElementById('em-photo-clear');
         const preview = document.getElementById('em-photo-preview');
 
-        fileInput?.addEventListener('change', (e) => {
+        fileInput?.addEventListener('change', async (e) => {
           const file = e.target.files[0];
           if (!file) return;
-          if (file.size > 2 * 1024 * 1024) {
-            ui.alert('Photo must be less than 2MB', 'warning');
-            return;
-          }
-          const reader = new FileReader();
-          reader.onload = (re) => {
-            photoBase64 = re.target.result;
+          try {
+            const { dataUrl } = await utils.logoToBase64(file, 5, 400);
+            photoBase64 = dataUrl;
             if (preview) {
               preview.innerHTML = `<img src="${photoBase64}" style="width:100%; height:100%; object-fit:cover;">`;
             }
-          };
-          reader.readAsDataURL(file);
+          } catch (err) {
+            ui.alert(err.message, 'warning');
+          }
         });
 
         clearBtn?.addEventListener('click', () => {

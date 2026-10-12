@@ -35,6 +35,9 @@ class Database {
                         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                         PDO::ATTR_EMULATE_PREPARES => false
                     ]);
+                    try {
+                        self::$instance->exec("SET GLOBAL max_allowed_packet = 67108864");
+                    } catch (Throwable $e) {}
                 }
             } catch (PDOException $e) {
                 http_response_code(500);

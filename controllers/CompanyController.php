@@ -124,9 +124,9 @@ class CompanyController {
                     return ['ok' => false, 'error' => ['code' => 'VALIDATION', 'message' => 'Invalid image format. PNG, JPEG, WEBP and SVG supported.']];
                 }
 
-                // Check size (approx base64 length limit 3MB)
-                if (strlen($base64Data) > 4000000) {
-                    return ['ok' => false, 'error' => ['code' => 'VALIDATION', 'message' => 'Logo size exceeds 3MB limit.']];
+                // Check size (must be under 900KB base64 to ensure safe MySQL packet transit)
+                if (strlen($base64Data) > 950000) {
+                    return ['ok' => false, 'error' => ['code' => 'VALIDATION', 'message' => 'Logo size exceeds safe limit. Please upload an image under 1MB.']];
                 }
 
                 $now = date('Y-m-d H:i:s');

@@ -113,8 +113,9 @@ export const utils = {
 
   /**
    * Convert file to Base64 with MIME and size validation and high-fidelity scaling
+   * Uses maxDimension 400px to guarantee ultra-crisp display while keeping base64 < 100KB (well below MySQL 1MB packet limit)
    */
-  async logoToBase64(file, maxSizeMB = 5, maxDimension = 1000) {
+  async logoToBase64(file, maxSizeMB = 5, maxDimension = 400) {
     return new Promise((resolve, reject) => {
       if (!file) return reject(new Error('No file selected'));
 
@@ -133,6 +134,9 @@ export const utils = {
         // If SVG, return as is (keep vector scalability)
         if (file.type === 'image/svg+xml') {
           const base64Data = result.split(',')[1];
+          if (base64Data.length > 500000) {
+            return reject(new Error('SVG logo file is too large (> 500KB). Please optimize your SVG.'));
+          }
           return resolve({
             base64: base64Data,
             dataUrl: result,
@@ -141,10 +145,12 @@ export const utils = {
           });
         }
 
-        // For raster images, constrain max dimension if very large
+        // For raster images, always draw on canvas constrained to maxDimension (e.g. 400px)
         const img = new Image();
         img.onload = () => {
-          let { width, height } = img;
+          let width = img.naturalWidth || img.width;
+          let height = img.naturalHeight || img.height;
+
           if (width > maxDimension || height > maxDimension) {
             if (width > height) {
               height = Math.round((height * maxDimension) / width);
@@ -153,35 +159,39 @@ export const utils = {
               width = Math.round((width * maxDimension) / height);
               height = maxDimension;
             }
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'high';
-            ctx.drawImage(img, 0, 0, width, height);
-
-            const outMime = (file.type === 'image/jpeg') ? 'image/jpeg' : 'image/png';
-            const dataUrl = canvas.toDataURL(outMime, 0.95);
-            const base64Data = dataUrl.split(',')[1];
-            resolve({
-              base64: base64Data,
-              dataUrl,
-              mimeType: outMime,
-              size: Math.round((base64Data.length * 3) / 4)
-            });
-          } else {
-            const base64Data = result.split(',')[1];
-            resolve({
-              base64: base64Data,
-              dataUrl: result,
-              mimeType: file.type,
-              size: file.size
-            });
           }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, width);
+          canvas.height = Math.max(1, height);
+          const ctx = canvas.getContext('2d');
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Use PNG for transparency, or JPEG if input was JPEG
+          const outMime = (file.type === 'image/jpeg') ? 'image/jpeg' : 'image/png';
+          let dataUrl = canvas.toDataURL(outMime, 0.90);
+          let base64Data = dataUrl.split(',')[1];
+
+          // If still over 500KB, optimize to high quality JPEG
+          if (base64Data.length > 500000 && outMime === 'image/png') {
+            dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+            base64Data = dataUrl.split(',')[1];
+          }
+
+          resolve({
+            base64: base64Data,
+            dataUrl,
+            mimeType: outMime,
+            size: Math.round((base64Data.length * 3) / 4)
+          });
         };
         img.onerror = () => {
           const base64Data = result.split(',')[1];
+          if (base64Data.length > 600000) {
+            return reject(new Error('Image is too large. Please select an image under 500KB.'));
+          }
           resolve({
             base64: base64Data,
             dataUrl: result,
