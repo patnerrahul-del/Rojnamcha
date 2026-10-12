@@ -38,9 +38,10 @@ export const billingModule = {
                 <button id="pos-hawker-sale-btn" class="btn btn-info btn-sm" style="background:#0284c7; border-color:#0284c7; color:#fff;" title="Record Hawker Dispatch Sale & HP Pay Collection">
                   <i class="fa-solid fa-truck-ramp-box"></i> Hawker Dispatch Sale
                 </button>
-                <button id="pos-refund-sv-btn" class="btn btn-warning btn-sm" style="background:#d97706; border-color:#d97706; color:#fff;" title="Customer Connection Surrender / Security Refund">
-                  <i class="fa-solid fa-hand-holding-dollar"></i> Return Security Deposit
+                <button id="pos-tv-out-btn" class="btn btn-warning btn-sm" style="background:#d97706; border-color:#d97706; color:#fff; font-weight:700;" title="TV Out Billing / Connection Surrender & Cash Refund">
+                  <i class="fa-solid fa-arrow-right-from-bracket"></i> TV Out Billing
                 </button>
+                <button id="pos-refund-sv-btn" class="btn btn-warning btn-sm" style="display:none;">Return Security Deposit</button>
                 <button id="pos-sv-package-btn" class="btn btn-secondary btn-sm">
                   <i class="fa-solid fa-box-open"></i> New SV Package
                 </button>
@@ -51,11 +52,24 @@ export const billingModule = {
             </div>
 
             <div style="display:flex; flex-direction:column; gap:12px;">
-              <div class="form-group" style="margin-bottom:0;">
-                <label class="form-label">Customer Selection</label>
-                <select id="pos-customer-select" class="form-select">
-                  <option value="">Counter Walk-in Customer</option>
-                </select>
+              <div style="display:grid; grid-template-columns: 2fr 1fr; gap:12px;">
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label"><i class="fa-solid fa-user"></i> Customer Selection</label>
+                  <select id="pos-customer-select" class="form-select">
+                    <option value="">Counter Walk-in Customer</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label"><i class="fa-solid fa-id-badge"></i> Cust Type</label>
+                  <input list="pos-cust-types" id="pos-customer-type" class="form-control" value="DOMESTIC" placeholder="DOMESTIC / COMMERCIAL">
+                  <datalist id="pos-cust-types">
+                    <option value="DOMESTIC">
+                    <option value="COMMERCIAL">
+                    <option value="INSTITUTIONAL">
+                    <option value="NFR">
+                    <option value="WALK-IN">
+                  </datalist>
+                </div>
               </div>
 
               <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
@@ -71,16 +85,20 @@ export const billingModule = {
             </div>
           </div>
 
-          <!-- Product Line Selector -->
+          <!-- Product Line Selector with Editable Rate -->
           <div class="card" style="margin-bottom:16px;">
-            <div style="display:flex; gap:10px; align-items:flex-end;">
-              <div class="form-group" style="flex:1;">
-                <label class="form-label">Select Product / Service Refill</label>
+            <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+              <div class="form-group" style="flex:2; min-width:180px;">
+                <label class="form-label"><i class="fa-solid fa-cubes"></i> Select Product / Service Refill</label>
                 <select id="pos-item-select" class="form-select">
                   <option value="">-- Choose Item --</option>
                 </select>
               </div>
-              <div class="form-group" style="width:100px;">
+              <div class="form-group" style="width:120px;">
+                <label class="form-label"><i class="fa-solid fa-tag"></i> Rate (₹) *</label>
+                <input type="number" id="pos-item-rate" class="form-control num-font" step="any" placeholder="Rate">
+              </div>
+              <div class="form-group" style="width:85px;">
                 <label class="form-label">Quantity</label>
                 <input type="number" id="pos-item-qty" class="form-control" value="1" min="1" step="1">
               </div>
@@ -105,9 +123,9 @@ export const billingModule = {
                   <tr>
                     <th>Item Description</th>
                     <th>Category</th>
-                    <th class="text-center">Qty</th>
-                    <th class="text-right">Rate</th>
-                    <th class="text-right">Total</th>
+                    <th class="text-center" style="width:80px;">Qty</th>
+                    <th class="text-right" style="width:115px;">Rate (₹)</th>
+                    <th class="text-right" style="width:110px;">Total</th>
                     <th class="text-center" style="width:50px;">Action</th>
                   </tr>
                 </thead>
@@ -275,8 +293,29 @@ export const billingModule = {
     // SV Package
     document.getElementById('pos-sv-package-btn').addEventListener('click', () => this.openSVPackageModal());
 
-    // Security Refund (SV Surrender)
+    // TV Out Billing (Refund)
+    document.getElementById('pos-tv-out-btn')?.addEventListener('click', () => this.openSecurityRefundModal());
     document.getElementById('pos-refund-sv-btn')?.addEventListener('click', () => this.openSecurityRefundModal());
+
+    // Customer selection auto-fills Customer Type (CustType)
+    document.getElementById('pos-customer-select')?.addEventListener('change', (e) => {
+      const sel = e.target;
+      const opt = sel.options[sel.selectedIndex];
+      const typeIn = document.getElementById('pos-customer-type');
+      if (opt && opt.dataset.type && typeIn) {
+        typeIn.value = opt.dataset.type;
+      }
+    });
+
+    // Item selection auto-fills Rate input field
+    document.getElementById('pos-item-select')?.addEventListener('change', (e) => {
+      const itemId = parseInt(e.target.value);
+      const it = availableItems.find(i => i.ItemID === itemId);
+      const rateIn = document.getElementById('pos-item-rate');
+      if (it && rateIn) {
+        rateIn.value = Number(it.Rate).toFixed(2);
+      }
+    });
 
     // Reload Bills
     document.getElementById('pos-reload-bills-btn').addEventListener('click', () => this.loadRecentBills());
@@ -311,7 +350,7 @@ export const billingModule = {
       if (select) {
         select.innerHTML = '<option value="">Counter Walk-in Customer</option>' +
           availableCustomers.map(c => `
-            <option value="${c.CustomerID}" data-name="${utils.escapeHtml(c.Name)}" data-mob="${c.Mobile}" data-cons="${c.ConsumerNo || ''}">
+            <option value="${c.CustomerID}" data-name="${utils.escapeHtml(c.Name)}" data-mob="${c.Mobile}" data-cons="${c.ConsumerNo || ''}" data-type="${utils.escapeHtml(c.ConnectionType || 'DOMESTIC')}">
               ${utils.escapeHtml(c.Name)} (${c.Mobile}) ${c.ConsumerNo ? '• #' + c.ConsumerNo : ''}
             </option>
           `).join('');
@@ -343,6 +382,7 @@ export const billingModule = {
   addItemToCart() {
     const select = document.getElementById('pos-item-select');
     const qtyInput = document.getElementById('pos-item-qty');
+    const rateInput = document.getElementById('pos-item-rate');
     const itemId = parseInt(select.value);
     const qty = parseInt(qtyInput.value) || 1;
 
@@ -354,8 +394,12 @@ export const billingModule = {
     const itemObj = availableItems.find(i => i.ItemID === itemId);
     if (!itemObj) return;
 
-    // Check if already in cart
-    const existing = cart.find(c => c.ItemID === itemId);
+    // Use manually typed rate if present and valid; else fallback to item's default rate
+    const typedRate = parseFloat(rateInput?.value);
+    const rate = (!isNaN(typedRate) && typedRate >= 0) ? typedRate : Number(itemObj.Rate);
+
+    // Check if already in cart with matching itemId and rate
+    const existing = cart.find(c => c.ItemID === itemId && Math.abs(c.Rate - rate) < 0.001);
     if (existing) {
       existing.Quantity += qty;
       existing.Total = existing.Quantity * existing.Rate;
@@ -366,16 +410,17 @@ export const billingModule = {
         Category: itemObj.Category,
         CylinderType: itemObj.CylinderType,
         Quantity: qty,
-        Rate: Number(itemObj.Rate),
-        RatePaise: utils.toPaise(itemObj.Rate),
+        Rate: rate,
+        RatePaise: utils.toPaise(rate),
         TaxPercent: Number(itemObj.TaxPercent || 0),
-        Total: qty * Number(itemObj.Rate)
+        Total: qty * rate
       });
     }
 
     // Reset selectors
     select.value = '';
     qtyInput.value = '1';
+    if (rateInput) rateInput.value = '';
     this.renderCart();
   },
 
@@ -397,9 +442,11 @@ export const billingModule = {
         <td><strong>${utils.escapeHtml(it.ItemName)}</strong></td>
         <td><span class="badge badge-info">${it.Category}</span></td>
         <td class="text-center">
-          <input type="number" class="form-control text-center cart-qty-edit" data-idx="${idx}" value="${it.Quantity}" min="1" style="width:60px; height:32px; display:inline-block;">
+          <input type="number" class="form-control text-center cart-qty-edit" data-idx="${idx}" value="${it.Quantity}" min="1" style="width:65px; height:32px; display:inline-block;">
         </td>
-        <td class="text-right num-font">${utils.formatCurrency(it.Rate)}</td>
+        <td class="text-right">
+          <input type="number" class="form-control text-right cart-rate-edit num-font" data-idx="${idx}" value="${it.Rate}" min="0" step="any" style="width:95px; height:32px; display:inline-block; font-weight:700;">
+        </td>
         <td class="text-right num-font" style="font-weight:700;">${utils.formatCurrency(it.Total)}</td>
         <td class="text-center">
           <button class="btn btn-outline btn-sm cart-remove-item" data-idx="${idx}" style="color:var(--color-danger); border:none;" title="Remove">
@@ -409,12 +456,24 @@ export const billingModule = {
       </tr>
     `).join('');
 
-    // Bind quantity and delete listeners
+    // Bind quantity edit listeners
     tbody.querySelectorAll('.cart-qty-edit').forEach(input => {
       input.addEventListener('change', (e) => {
         const idx = parseInt(e.target.dataset.idx);
         const val = parseInt(e.target.value) || 1;
         cart[idx].Quantity = Math.max(1, val);
+        cart[idx].Total = cart[idx].Quantity * cart[idx].Rate;
+        this.renderCart();
+      });
+    });
+
+    // Bind rate edit listeners (user can edit rate inside cart)
+    tbody.querySelectorAll('.cart-rate-edit').forEach(input => {
+      input.addEventListener('change', (e) => {
+        const idx = parseInt(e.target.dataset.idx);
+        const val = parseFloat(e.target.value);
+        cart[idx].Rate = isNaN(val) ? 0 : Math.max(0, val);
+        cart[idx].RatePaise = utils.toPaise(cart[idx].Rate);
         cart[idx].Total = cart[idx].Quantity * cart[idx].Rate;
         this.renderCart();
       });
@@ -529,6 +588,7 @@ export const billingModule = {
       CustomerName: custId ? selectedOption.dataset.name : 'Counter Walk-in',
       CustomerMobile: custId ? selectedOption.dataset.mob : '',
       ConsumerNo: custId ? selectedOption.dataset.cons : '',
+      CustomerType: document.getElementById('pos-customer-type')?.value.trim() || 'DOMESTIC',
       DiscountAmount: parseFloat(document.getElementById('pos-discount')?.value || 0),
       PaidCash: parseFloat(document.getElementById('pos-pay-cash')?.value || 0),
       PaidUPI: parseFloat(document.getElementById('pos-pay-upi')?.value || 0),
@@ -573,6 +633,7 @@ export const billingModule = {
     }
 
     tbody.innerHTML = res.data.map(b => {
+      const isTvOut = (b.BillType === 'TV_OUT');
       const pmList = [];
       if (Number(b.PaidCash) > 0) pmList.push('Cash');
       if (Number(b.PaidUPI) > 0) pmList.push('UPI');
@@ -582,22 +643,30 @@ export const billingModule = {
 
       return `
         <tr style="${b.IsCancelled ? 'opacity:0.6; text-decoration:line-through;' : ''}">
-          <td><strong>${utils.escapeHtml(b.BillNumber)}</strong></td>
+          <td>
+            <strong>${utils.escapeHtml(b.BillNumber)}</strong>
+            ${isTvOut ? '<span class="badge" style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; font-size:10px; margin-left:4px; font-weight:700;"><i class="fa-solid fa-arrow-right-from-bracket"></i> TV OUT</span>' : ''}
+          </td>
           <td>${utils.formatDate(b.BillDate)}</td>
-          <td>${utils.escapeHtml(b.CustomerName)}</td>
-          <td class="text-right num-font" style="font-weight:700;">${utils.formatCurrency(b.TotalAmount)}</td>
-          <td><span class="badge badge-secondary">${pmList.join(', ') || 'N/A'}</span></td>
+          <td>
+            ${utils.escapeHtml(b.CustomerName)}
+            ${b.CustomerType ? `<span style="font-size:10.5px; color:var(--text-muted); display:block;">(${utils.escapeHtml(b.CustomerType)})</span>` : ''}
+          </td>
+          <td class="text-right num-font" style="font-weight:700; ${isTvOut ? 'color:#b45309;' : ''}">
+            ${isTvOut ? '-' : ''}${utils.formatCurrency(b.TotalAmount)}
+          </td>
+          <td><span class="badge badge-secondary">${pmList.join(', ') || (isTvOut ? 'Cash Outflow' : 'N/A')}</span></td>
           <td class="text-center">
-            ${b.IsCancelled ? '<span class="badge badge-danger">CANCELLED</span>' : '<span class="badge badge-success">FINAL</span>'}
+            ${b.IsCancelled ? '<span class="badge badge-danger">CANCELLED</span>' : (isTvOut ? '<span class="badge" style="background:#ecfdf5; color:#047857;">REFUNDED</span>' : '<span class="badge badge-success">FINAL</span>')}
           </td>
           <td class="text-center" style="white-space:nowrap;">
-            <button class="action-icon view-icon view-bill-action" data-id="${b.BillID}" title="View Details">
+            <button class="action-icon view-icon view-bill-action" data-id="${b.BillID}" data-type="${b.BillType || 'SALE'}" title="View Details">
               <i class="fa-solid fa-eye"></i>
             </button>
-            <button class="action-icon print-icon print-bill-action" data-id="${b.BillID}" title="Print Receipt">
+            <button class="action-icon print-icon print-bill-action" data-id="${b.BillID}" data-type="${b.BillType || 'SALE'}" title="Print Receipt">
               <i class="fa-solid fa-print"></i>
             </button>
-            ${!b.IsCancelled && auth.can('billing', 'delete') ? `
+            ${!b.IsCancelled && !isTvOut && auth.can('billing', 'delete') ? `
             <button class="action-icon delete-icon cancel-bill-action" data-id="${b.BillID}" data-no="${b.BillNumber}" title="Cancel Bill">
               <i class="fa-solid fa-ban"></i>
             </button>` : ''}
@@ -610,6 +679,14 @@ export const billingModule = {
     tbody.querySelectorAll('.view-bill-action').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         const bId = parseInt(e.currentTarget.dataset.id);
+        const bType = e.currentTarget.dataset.type;
+        if (bType === 'TV_OUT') {
+          const tvRes = await api('getTvOutBill', { RefundID: bId });
+          if (tvRes.ok && tvRes.data) {
+            this.viewTvOutDetails(tvRes.data);
+          }
+          return;
+        }
         const billRes = await api('getBill', { BillID: bId });
         if (billRes.ok && billRes.data) {
           this.viewBillDetails(billRes.data);
@@ -617,9 +694,18 @@ export const billingModule = {
       });
     });
 
+    // Bind Print Button
     tbody.querySelectorAll('.print-bill-action').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         const bId = parseInt(e.currentTarget.dataset.id);
+        const bType = e.currentTarget.dataset.type;
+        if (bType === 'TV_OUT') {
+          const tvRes = await api('getTvOutBill', { RefundID: bId });
+          if (tvRes.ok && tvRes.data) {
+            printEngine.openPreview('security_refund', tvRes.data, '80mm');
+          }
+          return;
+        }
         const billRes = await api('getBill', { BillID: bId });
         if (billRes.ok && billRes.data) {
           printEngine.openPreview('pos_invoice', billRes.data, 'a4_tax');
@@ -641,6 +727,75 @@ export const billingModule = {
         }
       });
     });
+  },
+
+  viewTvOutDetails(tv) {
+    const html = `
+      <div style="display:flex; flex-direction:column; gap:14px; text-align:left;">
+        <div style="background:var(--bg-body); border:1px solid var(--border); border-radius:var(--r-sm); padding:14px; display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <div style="font-size:11px; text-transform:uppercase; color:var(--text-muted); font-weight:700;">Voucher Number</div>
+            <div style="font-size:16px; font-weight:800; color:#d97706; margin-top:2px;">${utils.escapeHtml(tv.RefundNumber)}</div>
+            <div style="font-size:12px; color:var(--text-muted); margin-top:3px;">Date: <strong>${utils.formatDate(tv.Date)}</strong></div>
+            <div style="margin-top:6px;"><span class="badge" style="background:#ecfdf5; color:#047857; font-weight:700;">TV OUT COMPLETED</span></div>
+          </div>
+          <div>
+            <div style="font-size:11px; text-transform:uppercase; color:var(--text-muted); font-weight:700;">Consumer Details</div>
+            <div style="font-size:14px; font-weight:700; margin-top:2px;">${utils.escapeHtml(tv.CustomerName)}</div>
+            <div style="font-size:12px; color:var(--text-muted); margin-top:3px;">Mobile: <strong>${utils.escapeHtml(tv.CustomerMobile || '-')}</strong></div>
+            <div style="font-size:12px; color:var(--text-muted);">Consumer No: <strong>${utils.escapeHtml(tv.ConsumerNo || '-')}</strong></div>
+            <div style="font-size:12px; color:var(--text-muted);">Cust Type: <strong>${utils.escapeHtml(tv.CustomerType || 'DOMESTIC')}</strong></div>
+          </div>
+        </div>
+
+        <div style="border:1px solid var(--border); border-radius:var(--r-sm); padding:12px; background:var(--bg-surface);">
+          <div style="font-weight:700; margin-bottom:8px; font-size:13px;"><i class="fa-solid fa-boxes-packing"></i> Equipment Returned:</div>
+          <div style="font-size:12px; display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+            <div>• Cylinder: <strong>${utils.escapeHtml(tv.CylinderType || '14.2 KG Domestic')}</strong> (${tv.CylindersReturned || 1} Empty)</div>
+            <div>• Regulator: <strong>${tv.RegulatorReturned ? 'Returned' : 'Not Returned'}</strong></div>
+            <div>• Passbook: <strong>${tv.PassbookReturned ? 'Surrendered' : 'No'}</strong></div>
+          </div>
+        </div>
+
+        <div style="border:1px solid var(--border); border-radius:var(--r-sm); overflow:hidden;">
+          <table class="data-table" style="margin:0;">
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th class="text-right">Amount (₹)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Total Security Deposit Held</td>
+                <td class="text-right num-font font-weight-bold">${utils.formatCurrency(tv.SecurityAmount || 0)}</td>
+              </tr>
+              ${Number(tv.TvOutCharge) > 0 ? `
+              <tr style="color:#b91c1c;">
+                <td>Less: TV Out Charge</td>
+                <td class="text-right num-font">-${utils.formatCurrency(tv.TvOutCharge)}</td>
+              </tr>` : ''}
+              ${Number(tv.AdminCharge) > 0 ? `
+              <tr style="color:#b91c1c;">
+                <td>Less: Administration Charge</td>
+                <td class="text-right num-font">-${utils.formatCurrency(tv.AdminCharge)}</td>
+              </tr>` : ''}
+              ${Number(tv.ImprestFund) > 0 ? `
+              <tr style="color:#b91c1c;">
+                <td>Less: Imprest Fund / Custom Deduction</td>
+                <td class="text-right num-font">-${utils.formatCurrency(tv.ImprestFund)}</td>
+              </tr>` : ''}
+              <tr style="background:var(--bg-body); font-weight:800; font-size:15px; color:#15803d;">
+                <td>NET CASH RETURNED TO CUSTOMER</td>
+                <td class="text-right num-font">${utils.formatCurrency(tv.RefundAmount || 0)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    ui.modal(html, `TV Out Voucher - ${tv.RefundNumber}`);
   },
 
   viewBillDetails(bill) {
@@ -1087,16 +1242,21 @@ export const billingModule = {
    * Return Security Deposit (SV Surrender / Connection Closure) Workflow
    * Includes Custom Amount Input for Vintage/Old SV Presets
    */
+  /**
+   * TV Out Billing / Security Deposit Refund (Connection Closure / Surrender)
+   * Deducts TV Out Charge, Admin Charge, and Imprest Fund / Custom Deduction from Total Security
+   * Returns remaining cash to customer and restores empty cylinder to godown stock
+   */
   async openSecurityRefundModal(preselectedCustomer = null) {
     const custOptions = availableCustomers.map(c => `
-      <option value="${c.CustomerID}" data-name="${utils.escapeHtml(c.Name)}" data-mob="${utils.escapeHtml(c.Mobile)}" data-cons="${utils.escapeHtml(c.ConsumerNo || '')}" ${preselectedCustomer && preselectedCustomer.CustomerID === c.CustomerID ? 'selected' : ''}>
+      <option value="${c.CustomerID}" data-name="${utils.escapeHtml(c.Name)}" data-mob="${c.Mobile}" data-cons="${c.ConsumerNo || ''}" data-type="${utils.escapeHtml(c.ConnectionType || 'DOMESTIC')}" ${preselectedCustomer && preselectedCustomer.CustomerID === c.CustomerID ? 'selected' : ''}>
         ${utils.escapeHtml(c.Name)} (${c.Mobile}) ${c.ConsumerNo ? '- ' + c.ConsumerNo : ''}
       </option>
     `).join('');
 
     const html = `
-      <div style="display:flex; flex-direction:column; gap:8px; text-align:left;">
-        <!-- Section 1: Customer Selection -->
+      <div style="display:flex; flex-direction:column; gap:10px; text-align:left;">
+        <!-- Section 1: Customer Selection & CustType -->
         <div class="modal-section-card">
           <div class="modal-section-header">
             <i class="fa-solid fa-user-check"></i>
@@ -1123,12 +1283,11 @@ export const billingModule = {
               <input type="text" id="sr-cust-consumerno" class="form-control" value="${preselectedCustomer ? utils.escapeHtml(preselectedCustomer.ConsumerNo || '') : ''}" placeholder="HPCL Consumer No">
             </div>
             <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-gas-pump"></i> Cylinder Type</label>
-              <select id="sr-cylinder-type" class="form-select">
-                <option value="14.2 KG Domestic" selected>14.2 KG Domestic</option>
-                <option value="19 KG Commercial">19 KG Commercial</option>
-                <option value="5 KG Domestic">5 KG Domestic</option>
-                <option value="5 KG Commercial">5 KG Commercial</option>
+              <label class="form-label"><i class="fa-solid fa-id-badge"></i> Cust Type</label>
+              <select id="sr-cust-type" class="form-select">
+                <option value="DOMESTIC" selected>DOMESTIC</option>
+                <option value="COMMERCIAL">COMMERCIAL</option>
+                <option value="INSTITUTIONAL">INSTITUTIONAL</option>
               </select>
             </div>
           </div>
@@ -1141,21 +1300,34 @@ export const billingModule = {
             <span>Equipments Surrendered / Returned to Godown</span>
           </div>
           <div style="background:var(--bg-surface); padding:10px 14px; border:1px solid var(--border); border-radius:var(--r-sm); display:flex; flex-direction:column; gap:10px;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; cursor:pointer;">
-                <input type="checkbox" id="sr-chk-cylinder" checked style="cursor:pointer; width:16px; height:16px;">
-                <span>Sound Empty Cylinder Returned (+1 Stock)</span>
-              </label>
-              <input type="number" id="sr-qty-cylinder" class="form-control" value="1" min="0" max="5" style="width:70px; text-align:center;">
+            <div style="display:grid; grid-template-columns: 2fr 1fr; gap:12px; align-items:center;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" style="margin-bottom:4px;"><i class="fa-solid fa-gas-pump"></i> Cylinder Variant</label>
+                <select id="sr-cylinder-type" class="form-select">
+                  <option value="14.2 KG Domestic" selected>14.2 KG Domestic</option>
+                  <option value="19 KG Commercial">19 KG Commercial</option>
+                  <option value="5 KG Domestic">5 KG Domestic</option>
+                  <option value="5 KG Commercial">5 KG Commercial</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" style="margin-bottom:4px;">Cylinder Qty</label>
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <input type="checkbox" id="sr-chk-cylinder" checked style="cursor:pointer; width:18px; height:18px;">
+                  <input type="number" id="sr-qty-cylinder" class="form-control text-center" value="1" min="1" max="10">
+                </div>
+              </div>
             </div>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
+
+            <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px dashed var(--border); padding-top:8px;">
               <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; cursor:pointer;">
                 <input type="checkbox" id="sr-chk-regulator" checked style="cursor:pointer; width:16px; height:16px;">
                 <span>LPG Pressure Regulator Returned</span>
               </label>
-              <input type="number" id="sr-qty-regulator" class="form-control" value="1" min="0" max="5" style="width:70px; text-align:center;">
+              <input type="number" id="sr-qty-regulator" class="form-control text-center" value="1" min="0" max="5" style="width:70px;">
             </div>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
+
+            <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px dashed var(--border); padding-top:8px;">
               <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; cursor:pointer;">
                 <input type="checkbox" id="sr-chk-passbook" checked style="cursor:pointer; width:16px; height:16px;">
                 <span>DGCC Blue Book / SV Subscription Voucher Surrendered</span>
@@ -1165,11 +1337,11 @@ export const billingModule = {
           </div>
         </div>
 
-        <!-- Section 3: Old SV Era & Custom Security Deposit Input -->
+        <!-- Section 3: Old SV Era & Total Security Deposit -->
         <div class="modal-section-card">
           <div class="modal-section-header">
             <i class="fa-solid fa-calculator"></i>
-            <span>SV Tariff Era & Custom Deposit Calculation</span>
+            <span>Security Deposit Held (Caution Money)</span>
           </div>
           <div class="form-grid">
             <div class="form-group" style="grid-column:1 / -1;">
@@ -1181,51 +1353,85 @@ export const billingModule = {
                 <option value="PRE_2006">Pre-2006 Vintage Era (Cylinder ₹500 + Regulator ₹50 = ₹550)</option>
                 <option value="CUSTOM">Custom / Manual Exact Amount (Type directly from Old SV Paper)</option>
               </select>
-              <small style="color:var(--text-muted); font-size:11px;">Select SV issue era or manually edit any amount below.</small>
             </div>
 
             <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-fire"></i> Cylinder Security Held (₹) *</label>
+              <label class="form-label"><i class="fa-solid fa-fire"></i> Cyl Security Rate (₹) *</label>
               <input type="number" id="sr-cyl-deposit" class="form-control num-font" value="2200.00" min="0" step="any" required>
             </div>
 
             <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-gauge-high"></i> Regulator Security Held (₹) *</label>
+              <label class="form-label"><i class="fa-solid fa-gauge-high"></i> Reg Security (₹) *</label>
               <input type="number" id="sr-reg-deposit" class="form-control num-font" value="250.00" min="0" step="any" required>
             </div>
 
+            <div class="form-group" style="grid-column:1 / -1;">
+              <label class="form-label" style="font-weight:700;"><i class="fa-solid fa-coins"></i> Total Security Deposit Held (₹)</label>
+              <input type="number" id="sr-sec-amount" class="form-control num-font" value="2450.00" min="0" step="any" readonly style="font-weight:800; background:var(--bg-body);">
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 4: Deductions Cut From Security (TV Out, Admin, Imprest) -->
+        <div class="modal-section-card" style="border:1px solid #fecaca; background:#fff5f5;">
+          <div class="modal-section-header" style="color:#b91c1c;">
+            <i class="fa-solid fa-scissors"></i>
+            <span>Deductions Cut From Total Security</span>
+          </div>
+          <div class="form-grid">
             <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-coins"></i> Total Security Held (₹)</label>
-              <input type="number" id="sr-sec-amount" class="form-control num-font" value="2450.00" min="0" step="any" required>
+              <label class="form-label" style="color:#b91c1c;"><i class="fa-solid fa-receipt"></i> TV Out Charge (₹) *</label>
+              <input type="number" id="sr-tv-out-charge" class="form-control num-font" value="100.00" min="0" step="any">
             </div>
 
             <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-file-invoice-dollar"></i> Deduction / Penalty (₹)</label>
-              <input type="number" id="sr-deduction" class="form-control num-font" value="0.00" min="0" step="any">
-              <small style="color:var(--text-muted); font-size:11px;">(Missing passbook, lost cap, or damage)</small>
+              <label class="form-label" style="color:#b91c1c;"><i class="fa-solid fa-file-invoice"></i> Administration Charge (₹) *</label>
+              <input type="number" id="sr-admin-charge" class="form-control num-font" value="100.00" min="0" step="any">
             </div>
 
             <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-hand-holding-dollar"></i> Net Refund Amount (₹)</label>
-              <input type="number" id="sr-net-refund" class="form-control num-font" value="2450.00" step="any" style="font-weight:800; color:var(--color-danger); background:#fee2e2;">
+              <label class="form-label" style="color:#b91c1c;"><i class="fa-solid fa-piggy-bank"></i> Imprest Fund / Custom (₹)</label>
+              <input type="number" id="sr-imprest-fund" class="form-control num-font" value="0.00" min="0" step="any" placeholder="Custom deduction">
             </div>
 
             <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-credit-card"></i> Refund Payment Mode</label>
+              <label class="form-label" style="font-weight:700; color:#b91c1c;"><i class="fa-solid fa-minus-circle"></i> Total Deductions Cut (₹)</label>
+              <input type="number" id="sr-deduction" class="form-control num-font" value="200.00" readonly style="font-weight:800; color:#b91c1c; background:#fee2e2;">
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 5: Net Cash Return & Payment Disbursal -->
+        <div class="modal-section-card" style="border:1px solid #86efac; background:#f0fdf4;">
+          <div class="modal-section-header" style="color:#15803d;">
+            <i class="fa-solid fa-hand-holding-dollar"></i>
+            <span>Net Cash Return to Customer (Refund Payout)</span>
+          </div>
+          <div class="form-grid">
+            <div class="form-group" style="grid-column:1 / -1;">
+              <label class="form-label" style="font-size:14px; font-weight:800; color:#15803d;">
+                Net Cash Returned to Customer (Total Security − Total Deductions)
+              </label>
+              <input type="number" id="sr-net-refund" class="form-control num-font" value="2250.00" readonly style="font-weight:800; font-size:20px; color:#15803d; background:#dcfce7; border:2px solid #86efac; text-align:center;">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label"><i class="fa-solid fa-money-bill-transfer"></i> Payout Payment Mode</label>
               <select id="sr-pay-mode" class="form-select">
-                <option value="CASH" selected>CASH (Paid from Daily Cashbook Till)</option>
+                <option value="CASH" selected>CASH (Paid from Daily Counter Till)</option>
                 <option value="UPI">UPI / Digital Transfer</option>
                 <option value="BANK">BANK / NEFT / Cheque</option>
               </select>
             </div>
 
-            <div class="form-group" style="grid-column:1 / -1;">
-              <label class="form-label"><i class="fa-solid fa-receipt"></i> Reference / Txn / Cheque No (If non-cash)</label>
-              <input type="text" id="sr-ref-no" class="form-control" placeholder="UPI Txn ID or Bank Cheque No">
+            <div class="form-group">
+              <label class="form-label"><i class="fa-solid fa-receipt"></i> Reference / Txn / Cheque No</label>
+              <input type="text" id="sr-ref-no" class="form-control" placeholder="Optional reference">
             </div>
+
             <div class="form-group" style="grid-column:1 / -1;">
-              <label class="form-label"><i class="fa-solid fa-note-sticky"></i> Surrender Reason / Notes</label>
-              <input type="text" id="sr-reason" class="form-control" value="Old SV Connection Surrender & Security Deposit Return" placeholder="Reason for surrender">
+              <label class="form-label"><i class="fa-solid fa-note-sticky"></i> Voucher Notes / Remarks</label>
+              <input type="text" id="sr-reason" class="form-control" value="TV Out Connection Surrender & Caution Money Refund" placeholder="Reason for TV Out">
             </div>
           </div>
         </div>
@@ -1237,28 +1443,52 @@ export const billingModule = {
       const nameIn = document.getElementById('sr-cust-name');
       const mobIn = document.getElementById('sr-cust-mobile');
       const consIn = document.getElementById('sr-cust-consumerno');
+      const typeSel = document.getElementById('sr-cust-type');
       const eraSel = document.getElementById('sr-sv-era');
       const cylDepIn = document.getElementById('sr-cyl-deposit');
       const regDepIn = document.getElementById('sr-reg-deposit');
       const secIn = document.getElementById('sr-sec-amount');
+      const tvOutIn = document.getElementById('sr-tv-out-charge');
+      const adminIn = document.getElementById('sr-admin-charge');
+      const imprestIn = document.getElementById('sr-imprest-fund');
       const dedIn = document.getElementById('sr-deduction');
       const netIn = document.getElementById('sr-net-refund');
       const cylSel = document.getElementById('sr-cylinder-type');
+      const chkCyl = document.getElementById('sr-chk-cylinder');
+      const qtyCyl = document.getElementById('sr-qty-cylinder');
+      const chkReg = document.getElementById('sr-chk-regulator');
+      const qtyReg = document.getElementById('sr-qty-regulator');
 
       const calcNet = () => {
-        const cyl = parseFloat(cylDepIn?.value) || 0;
-        const reg = parseFloat(regDepIn?.value) || 0;
-        const totalSec = cyl + reg;
+        const cQty = chkCyl?.checked ? (parseInt(qtyCyl?.value) || 1) : 0;
+        const cRate = parseFloat(cylDepIn?.value) || 0;
+        const cTotal = cQty * cRate;
+
+        const rQty = chkReg?.checked ? (parseInt(qtyReg?.value) || 1) : 0;
+        const rRate = parseFloat(regDepIn?.value) || 0;
+        const rTotal = rQty * rRate;
+
+        const totalSec = cTotal + rTotal;
         if (secIn) secIn.value = totalSec.toFixed(2);
 
-        const ded = parseFloat(dedIn?.value) || 0;
-        const net = Math.max(0, totalSec - ded);
+        const tvOut = parseFloat(tvOutIn?.value) || 0;
+        const admin = parseFloat(adminIn?.value) || 0;
+        const imprest = parseFloat(imprestIn?.value) || 0;
+        const totalDed = tvOut + admin + imprest;
+
+        if (dedIn) dedIn.value = totalDed.toFixed(2);
+
+        const net = Math.max(0, totalSec - totalDed);
         if (netIn) netIn.value = net.toFixed(2);
       };
 
-      cylDepIn?.addEventListener('input', calcNet);
-      regDepIn?.addEventListener('input', calcNet);
-      dedIn?.addEventListener('input', calcNet);
+      [cylDepIn, regDepIn, tvOutIn, adminIn, imprestIn, qtyCyl, qtyReg].forEach(el => {
+        el?.addEventListener('input', calcNet);
+      });
+
+      [chkCyl, chkReg].forEach(el => {
+        el?.addEventListener('change', calcNet);
+      });
 
       eraSel?.addEventListener('change', () => {
         const era = eraSel.value;
@@ -1296,21 +1526,34 @@ export const billingModule = {
         nameIn.value = opt.dataset.name || '';
         if (mobIn) mobIn.value = opt.dataset.mob || '';
         if (consIn) consIn.value = opt.dataset.cons || '';
+        if (typeSel && opt.dataset.type) typeSel.value = opt.dataset.type;
       });
+
+      // Initial calculation
+      calcNet();
     }, 150);
 
-    const data = await ui.formModal(html, 'Return Security Deposit (SV Surrender)', () => {
+    const data = await ui.formModal(html, 'TV Out Billing & Connection Surrender (Refund Voucher)', () => {
       const name = document.getElementById('sr-cust-name').value.trim();
       const mobile = document.getElementById('sr-cust-mobile').value.trim();
       if (!name || !mobile) {
         Swal.showValidationMessage('Customer Name and Mobile are required!');
         return false;
       }
-      const cylDep = parseFloat(document.getElementById('sr-cyl-deposit').value) || 0;
-      const regDep = parseFloat(document.getElementById('sr-reg-deposit').value) || 0;
-      const secAmt = parseFloat(document.getElementById('sr-sec-amount').value) || (cylDep + regDep);
-      const dedAmt = parseFloat(document.getElementById('sr-deduction').value) || 0;
-      const netAmt = parseFloat(document.getElementById('sr-net-refund').value) || Math.max(0, secAmt - dedAmt);
+      const cQty = document.getElementById('sr-chk-cylinder')?.checked ? (parseInt(document.getElementById('sr-qty-cylinder')?.value) || 1) : 0;
+      const cylDepRate = parseFloat(document.getElementById('sr-cyl-deposit')?.value) || 0;
+      const cylTotal = cQty * cylDepRate;
+
+      const rQty = document.getElementById('sr-chk-regulator')?.checked ? (parseInt(document.getElementById('sr-qty-regulator')?.value) || 1) : 0;
+      const regDep = parseFloat(document.getElementById('sr-reg-deposit')?.value) || 0;
+      const regTotal = rQty * regDep;
+
+      const secAmt = parseFloat(document.getElementById('sr-sec-amount')?.value) || (cylTotal + regTotal);
+      const tvOut = parseFloat(document.getElementById('sr-tv-out-charge')?.value) || 0;
+      const admin = parseFloat(document.getElementById('sr-admin-charge')?.value) || 0;
+      const imprest = parseFloat(document.getElementById('sr-imprest-fund')?.value) || 0;
+      const totalDed = tvOut + admin + imprest;
+      const netAmt = parseFloat(document.getElementById('sr-net-refund')?.value) || Math.max(0, secAmt - totalDed);
 
       if (secAmt <= 0) {
         Swal.showValidationMessage('Security deposit amount must be greater than zero!');
@@ -1324,29 +1567,35 @@ export const billingModule = {
         CustomerID: custId,
         CustomerName: name,
         Mobile: mobile,
-        ConsumerNo: document.getElementById('sr-cust-consumerno').value.trim(),
-        CylinderType: document.getElementById('sr-cylinder-type').value,
-        OriginalSVEra: document.getElementById('sr-sv-era').value,
-        CylinderDepositAmount: cylDep,
-        RegulatorDepositAmount: regDep,
-        CylindersReturned: document.getElementById('sr-chk-cylinder').checked ? (parseInt(document.getElementById('sr-qty-cylinder').value) || 1) : 0,
-        RegulatorReturned: document.getElementById('sr-chk-regulator').checked ? (parseInt(document.getElementById('sr-qty-regulator').value) || 1) : 0,
-        PassbookReturned: document.getElementById('sr-chk-passbook').checked ? 1 : 0,
+        ConsumerNo: document.getElementById('sr-cust-consumerno')?.value.trim() || '',
+        CustomerType: document.getElementById('sr-cust-type')?.value || 'DOMESTIC',
+        CylinderType: document.getElementById('sr-cylinder-type')?.value || '14.2 KG Domestic',
+        OriginalSVEra: document.getElementById('sr-sv-era')?.value || 'CURRENT',
+        CylinderDepositAmount: cylTotal,
+        RegulatorDepositAmount: regTotal,
+        CylindersReturned: cQty,
+        RegulatorReturned: rQty,
+        PassbookReturned: document.getElementById('sr-chk-passbook')?.checked ? 1 : 0,
         SecurityAmount: secAmt,
-        DeductionAmount: dedAmt,
+        TvOutCharge: tvOut,
+        AdminCharge: admin,
+        ImprestFund: imprest,
+        DeductionAmount: totalDed,
         RefundAmount: netAmt,
-        PaymentMode: document.getElementById('sr-pay-mode').value,
-        ReferenceNo: document.getElementById('sr-ref-no').value.trim(),
-        Reason: document.getElementById('sr-reason').value.trim()
+        PaymentMode: document.getElementById('sr-pay-mode')?.value || 'CASH',
+        ReferenceNo: document.getElementById('sr-ref-no')?.value.trim() || '',
+        Reason: document.getElementById('sr-reason')?.value.trim() || 'TV Out / SV Connection Surrender & Caution Money Refund',
+        VoucherType: 'TV_OUT'
       };
-    });
+    }, { maxWidth: '750px' });
 
     if (data) {
-      const res = await api('refundSecurityDeposit', data, { loaderMessage: 'Processing security refund & inventory update...' });
+      const res = await api('saveTvOutBill', data, { loaderMessage: 'Generating TV Out bill & updating stock/cash...' });
       if (res.ok && res.data) {
-        ui.success(`Security Refund Voucher ${res.data.RefundNumber} processed successfully! Amount: ${utils.formatCurrency(res.data.RefundAmount)}`);
-        printEngine.openPreview('security_refund', res.data, 'a4');
+        ui.success(`TV Out Bill ${res.data.RefundNumber} processed successfully! Net Cash Return: ${utils.formatCurrency(res.data.RefundAmount)}`);
+        printEngine.openPreview('security_refund', res.data, '80mm');
         await this.loadCustomers();
+        this.loadRecentBills();
       }
     }
   },

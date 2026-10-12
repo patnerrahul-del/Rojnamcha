@@ -1724,16 +1724,43 @@ export const printEngine = {
           <div class="thermal-divider"></div>
 
           <div class="thermal-row">
-            <span>Original Security Held:</span>
+            <span>Total Security Deposit:</span>
             <span>₹${Number(data.SecurityAmount || 0).toFixed(2)}</span>
           </div>
-          ${Number(data.DeductionAmount) > 0 ? `
-          <div class="thermal-row">
-            <span>Deductions / Damage:</span>
+          ${Number(data.CylinderDepositAmount) > 0 ? `
+          <div class="thermal-row" style="font-size:10px; color:#555;">
+            <span>• Cyl Deposit (${data.CylindersReturned || 1} Nos):</span>
+            <span>₹${Number(data.CylinderDepositAmount).toFixed(2)}</span>
+          </div>` : ''}
+          ${Number(data.RegulatorDepositAmount) > 0 ? `
+          <div class="thermal-row" style="font-size:10px; color:#555;">
+            <span>• Reg Caution Money:</span>
+            <span>₹${Number(data.RegulatorDepositAmount).toFixed(2)}</span>
+          </div>` : ''}
+
+          ${Number(data.TvOutCharge) > 0 ? `
+          <div class="thermal-row" style="color:#b91c1c;">
+            <span>Less: TV Out Charge:</span>
+            <span>-₹${Number(data.TvOutCharge).toFixed(2)}</span>
+          </div>` : ''}
+          ${Number(data.AdminCharge) > 0 ? `
+          <div class="thermal-row" style="color:#b91c1c;">
+            <span>Less: Admin Charge:</span>
+            <span>-₹${Number(data.AdminCharge).toFixed(2)}</span>
+          </div>` : ''}
+          ${Number(data.ImprestFund) > 0 ? `
+          <div class="thermal-row" style="color:#b91c1c;">
+            <span>Less: Imprest Fund / Custom:</span>
+            <span>-₹${Number(data.ImprestFund).toFixed(2)}</span>
+          </div>` : ''}
+          ${(Number(data.DeductionAmount) > 0 && !data.TvOutCharge && !data.AdminCharge && !data.ImprestFund) ? `
+          <div class="thermal-row" style="color:#b91c1c;">
+            <span>Less: Deductions:</span>
             <span>-₹${Number(data.DeductionAmount).toFixed(2)}</span>
           </div>` : ''}
+
           <div class="thermal-row" style="font-size:13px; font-weight:800; border-top:1px dashed #000; border-bottom:1px dashed #000; padding:4px 0; margin:4px 0;">
-            <span>NET REFUND PAID:</span>
+            <span>NET CASH RETURNED:</span>
             <span>₹${Number(data.RefundAmount || 0).toFixed(2)}</span>
           </div>
 
@@ -1746,7 +1773,7 @@ export const printEngine = {
 
           <div class="thermal-footer">
             <div>Equipment received in sound condition.</div>
-            <div>All subscription security refunded.</div>
+            <div>All caution money / security refunded.</div>
             <div style="margin-top:4px;">*** SIGNATURE ACKNOWLEDGED ***</div>
           </div>
         </div>
@@ -1768,9 +1795,9 @@ export const printEngine = {
             </div>
           </div>
           <div class="ds-doc-meta">
-            <div class="ds-doc-title">SECURITY REFUND</div>
-            <div class="ds-doc-num">${utils.escapeHtml(data.RefundNumber || 'REFUND-DRAFT')}</div>
-            <div class="ds-badge" style="background:#fee2e2; color:#b91c1c; border-color:#fca5a5;">SV SURRENDER VOUCHER</div>
+            <div class="ds-doc-title">TV OUT / REFUND</div>
+            <div class="ds-doc-num">${utils.escapeHtml(data.RefundNumber || 'TVO-DRAFT')}</div>
+            <div class="ds-badge" style="background:#fee2e2; color:#b91c1c; border-color:#fca5a5;">TRANSFER VOUCHER OUT</div>
           </div>
         </div>
 
@@ -1781,7 +1808,8 @@ export const printEngine = {
             <div class="ds-info-row"><span>Consumer Name:</span> <strong>${utils.escapeHtml(data.CustomerName || '')}</strong></div>
             <div class="ds-info-row"><span>Mobile Number:</span> <strong>${utils.escapeHtml(data.CustomerMobile || '-')}</strong></div>
             <div class="ds-info-row"><span>Consumer Number:</span> <strong>${utils.escapeHtml(data.ConsumerNo || '-')}</strong></div>
-            <div class="ds-info-row"><span>Reason for Refund:</span> <span>${utils.escapeHtml(data.Reason || 'SV Surrender / Migration')}</span></div>
+            <div class="ds-info-row"><span>Customer Type:</span> <strong>${utils.escapeHtml(data.CustomerType || 'DOMESTIC')}</strong></div>
+            <div class="ds-info-row"><span>Surrender Reason:</span> <span>${utils.escapeHtml(data.Reason || 'TV Out / SV Surrender')}</span></div>
           </div>
 
           <div class="ds-info-box">
@@ -1789,8 +1817,8 @@ export const printEngine = {
             <div class="ds-info-row"><span>Voucher Date:</span> <strong>${utils.formatDate(data.Date || utils.today())}</strong></div>
             <div class="ds-info-row"><span>Cylinder Variant:</span> <strong>${utils.escapeHtml(data.CylinderType || '14.2 KG Domestic')}</strong></div>
             <div class="ds-info-row"><span>Cylinders Returned:</span> <strong>${data.CylindersReturned || 1} Sound Empty</strong></div>
-            <div class="ds-info-row"><span>Regulator Returned:</span> <strong>${data.RegulatorReturned ? 'Yes (Returned in Sound condition)' : 'No (Deducted / Retained)'}</strong></div>
-            <div class="ds-info-row"><span>Passbook Returned:</span> <strong>${data.PassbookReturned ? 'Yes' : 'No'}</strong></div>
+            <div class="ds-info-row"><span>Regulator Returned:</span> <strong>${data.RegulatorReturned ? 'Yes (Returned in Sound condition)' : 'No (Retained / Missing)'}</strong></div>
+            <div class="ds-info-row"><span>Passbook Returned:</span> <strong>${data.PassbookReturned ? 'Yes (Surrendered)' : 'No'}</strong></div>
           </div>
         </div>
 
@@ -1799,10 +1827,10 @@ export const printEngine = {
           <thead>
             <tr>
               <th style="width:40px; text-align:center;">#</th>
-              <th>Description of Refund Item / Security Deposit</th>
-              <th style="width:140px;" class="num">Original Deposit (₹)</th>
+              <th>Description of Refund Item / Charges</th>
+              <th style="width:140px;" class="num">Gross Security (₹)</th>
               <th style="width:140px;" class="num">Deductions (₹)</th>
-              <th style="width:160px;" class="num">Net Refund Payable (₹)</th>
+              <th style="width:160px;" class="num">Net Cash Return (₹)</th>
             </tr>
           </thead>
           <tbody>
@@ -1810,12 +1838,38 @@ export const printEngine = {
               <td style="text-align:center;">1</td>
               <td>
                 <strong>LPG Equipment Subscription Security Deposit Refund</strong>
-                <div style="font-size:10px; color:#64748b;">Includes cylinder deposit, pressure regulator caution money and passbook verification</div>
+                <div style="font-size:10px; color:#64748b;">
+                  Cylinder Security: ₹${Number(data.CylinderDepositAmount || 0).toFixed(2)} | Regulator Security: ₹${Number(data.RegulatorDepositAmount || 0).toFixed(2)}
+                </div>
               </td>
               <td class="num">${utils.formatCurrency(data.SecurityAmount || 0)}</td>
-              <td class="num" style="color:#b91c1c;">${Number(data.DeductionAmount) > 0 ? `-${utils.formatCurrency(data.DeductionAmount)}` : '₹0.00'}</td>
-              <td class="num" style="font-weight:800; font-size:14px; color:#15803d;">${utils.formatCurrency(data.RefundAmount || 0)}</td>
+              <td class="num" style="color:#64748b;">-</td>
+              <td class="num" style="font-weight:700;">${utils.formatCurrency(data.SecurityAmount || 0)}</td>
             </tr>
+            ${Number(data.TvOutCharge) > 0 ? `
+            <tr>
+              <td style="text-align:center;">2</td>
+              <td><strong>TV Out Processing Charge</strong></td>
+              <td class="num">-</td>
+              <td class="num" style="color:#b91c1c;">-${utils.formatCurrency(data.TvOutCharge)}</td>
+              <td class="num" style="color:#b91c1c;">-${utils.formatCurrency(data.TvOutCharge)}</td>
+            </tr>` : ''}
+            ${Number(data.AdminCharge) > 0 ? `
+            <tr>
+              <td style="text-align:center;">3</td>
+              <td><strong>Administration / Handling Charge</strong></td>
+              <td class="num">-</td>
+              <td class="num" style="color:#b91c1c;">-${utils.formatCurrency(data.AdminCharge)}</td>
+              <td class="num" style="color:#b91c1c;">-${utils.formatCurrency(data.AdminCharge)}</td>
+            </tr>` : ''}
+            ${Number(data.ImprestFund) > 0 ? `
+            <tr>
+              <td style="text-align:center;">4</td>
+              <td><strong>Imprest Fund / Custom Deduction</strong></td>
+              <td class="num">-</td>
+              <td class="num" style="color:#b91c1c;">-${utils.formatCurrency(data.ImprestFund)}</td>
+              <td class="num" style="color:#b91c1c;">-${utils.formatCurrency(data.ImprestFund)}</td>
+            </tr>` : ''}
           </tbody>
         </table>
 
@@ -1839,17 +1893,32 @@ export const printEngine = {
           <div>
             <table class="ds-summary-table">
               <tr>
-                <td>Security Deposit Held:</td>
+                <td>Total Security Deposit:</td>
                 <td class="num">${utils.formatCurrency(data.SecurityAmount || 0)}</td>
               </tr>
-              ${Number(data.DeductionAmount) > 0 ? `
+              ${Number(data.TvOutCharge) > 0 ? `
               <tr>
-                <td>Less: Deductions:</td>
+                <td>Less: TV Out Charge:</td>
+                <td class="num" style="color:#b91c1c;">-${utils.formatCurrency(data.TvOutCharge)}</td>
+              </tr>` : ''}
+              ${Number(data.AdminCharge) > 0 ? `
+              <tr>
+                <td>Less: Admin Charge:</td>
+                <td class="num" style="color:#b91c1c;">-${utils.formatCurrency(data.AdminCharge)}</td>
+              </tr>` : ''}
+              ${Number(data.ImprestFund) > 0 ? `
+              <tr>
+                <td>Less: Imprest Fund / Custom:</td>
+                <td class="num" style="color:#b91c1c;">-${utils.formatCurrency(data.ImprestFund)}</td>
+              </tr>` : ''}
+              ${(Number(data.DeductionAmount) > 0 && !data.TvOutCharge && !data.AdminCharge && !data.ImprestFund) ? `
+              <tr>
+                <td>Less: Total Deductions:</td>
                 <td class="num" style="color:#b91c1c;">-${utils.formatCurrency(data.DeductionAmount)}</td>
               </tr>` : ''}
               <tr class="grand-row">
-                <td>Net Refund Disbursed:</td>
-                <td class="num" style="color:#15803d;">${utils.formatCurrency(data.RefundAmount || 0)}</td>
+                <td>Net Cash Returned:</td>
+                <td class="num" style="color:#15803d; font-size:16px;">${utils.formatCurrency(data.RefundAmount || 0)}</td>
               </tr>
             </table>
           </div>

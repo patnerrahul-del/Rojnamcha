@@ -899,6 +899,27 @@ class Database {
         try {
             self::execDdl($db, "ALTER TABLE security_refunds ADD COLUMN OriginalSVEra TEXT DEFAULT 'CURRENT'");
         } catch (Exception $e) {}
+        try {
+            self::execDdl($db, "ALTER TABLE security_refunds ADD COLUMN TvOutCharge REAL DEFAULT 0.0");
+        } catch (Exception $e) {}
+        try {
+            self::execDdl($db, "ALTER TABLE security_refunds ADD COLUMN AdminCharge REAL DEFAULT 0.0");
+        } catch (Exception $e) {}
+        try {
+            self::execDdl($db, "ALTER TABLE security_refunds ADD COLUMN ImprestFund REAL DEFAULT 0.0");
+        } catch (Exception $e) {}
+        try {
+            self::execDdl($db, "ALTER TABLE security_refunds ADD COLUMN CustomerType TEXT DEFAULT 'DOMESTIC'");
+        } catch (Exception $e) {}
+        try {
+            self::execDdl($db, "ALTER TABLE security_refunds ADD COLUMN VoucherType TEXT DEFAULT 'TV_OUT'");
+        } catch (Exception $e) {}
+        try {
+            self::execDdl($db, "ALTER TABLE bills ADD COLUMN CustomerType TEXT DEFAULT 'DOMESTIC'");
+        } catch (Exception $e) {}
+        try {
+            self::execDdl($db, "ALTER TABLE bills ADD COLUMN BillType TEXT DEFAULT 'SALE'");
+        } catch (Exception $e) {}
 
         // --- SEED INITIAL DATA SAFELY ---
         self::seedInitialData($db);

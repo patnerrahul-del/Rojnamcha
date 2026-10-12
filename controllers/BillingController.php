@@ -24,62 +24,183 @@ class BillingController {
                 $endDate = $payload['endDate'] ?? null;
                 $search = trim($payload['search'] ?? '');
                 $status = $payload['status'] ?? 'all';
+                $billType = $payload['billType'] ?? 'all';
 
-                $sql = "SELECT b.*, c.CustomerCode, c.Mobile as CustomerPhone 
-                        FROM bills b 
-                        LEFT JOIN customers c ON b.CustomerID = c.CustomerID 
-                        WHERE b.IsDeleted = 0";
-                $params = [];
+                $bills = [];
 
-                if (!empty($date)) {
-                    $sql .= " AND b.BillDate = ?";
-                    $params[] = $date;
-                } elseif (!empty($startDate) && !empty($endDate)) {
-                    $sql .= " AND b.BillDate BETWEEN ? AND ?";
-                    $params[] = $startDate;
-                    $params[] = $endDate;
+                if ($billType !== 'tv_out') {
+                    $sql = "SELECT b.*, c.CustomerCode, c.Mobile as CustomerPhone 
+                            FROM bills b 
+                            LEFT JOIN customers c ON b.CustomerID = c.CustomerID 
+                            WHERE b.IsDeleted = 0";
+                    $params = [];
+
+                    if (!empty($date)) {
+                        $sql .= " AND b.BillDate = ?";
+                        $params[] = $date;
+                    } elseif (!empty($startDate) && !empty($endDate)) {
+                        $sql .= " AND b.BillDate BETWEEN ? AND ?";
+                        $params[] = $startDate;
+                        $params[] = $endDate;
+                    }
+
+                    if ($status === 'active') {
+                        $sql .= " AND b.IsCancelled = 0";
+                    } elseif ($status === 'cancelled') {
+                        $sql .= " AND b.IsCancelled = 1";
+                    }
+
+                    if (!empty($search)) {
+                        $sql .= " AND (b.BillNumber LIKE ? OR b.CustomerName LIKE ? OR b.CustomerMobile LIKE ? OR b.ConsumerNo LIKE ?)";
+                        $term = "%$search%";
+                        $params[] = $term;
+                        $params[] = $term;
+                        $params[] = $term;
+                        $params[] = $term;
+                    }
+
+                    $sql .= " ORDER BY b.BillID DESC LIMIT " . MAX_PAGE_SIZE;
+                    $stmt = $db->prepare($sql);
+                    $stmt->execute($params);
+                    $bills = $stmt->fetchAll();
                 }
 
-                if ($status === 'active') {
-                    $sql .= " AND b.IsCancelled = 0";
-                } elseif ($status === 'cancelled') {
-                    $sql .= " AND b.IsCancelled = 1";
+                // If TV Out should be included
+                if ($billType === 'all' || $billType === 'tv_out') {
+                    $tvSql = "SELECT sr.*, c.CustomerCode, c.Mobile as CustomerPhone
+                              FROM security_refunds sr
+                              LEFT JOIN customers c ON sr.CustomerID = c.CustomerID
+                              WHERE 1=1";
+                    $tvParams = [];
+
+                    if (!empty($date)) {
+                        $tvSql .= " AND sr.Date = ?";
+                        $tvParams[] = $date;
+                    } elseif (!empty($startDate) && !empty($endDate)) {
+                        $tvSql .= " AND sr.Date BETWEEN ? AND ?";
+                        $tvParams[] = $startDate;
+                        $tvParams[] = $endDate;
+                    }
+
+                    if (!empty($search)) {
+                        $tvSql .= " AND (sr.RefundNumber LIKE ? OR sr.CustomerName LIKE ? OR sr.CustomerMobile LIKE ? OR sr.ConsumerNo LIKE ?)";
+                        $term = "%$search%";
+                        $tvParams[] = $term;
+                        $tvParams[] = $term;
+                        $tvParams[] = $term;
+                        $tvParams[] = $term;
+                    }
+
+                    $tvSql .= " ORDER BY sr.RefundID DESC LIMIT " . MAX_PAGE_SIZE;
+                    $tvStmt = $db->prepare($tvSql);
+                    $tvStmt->execute($tvParams);
+                    $tvRows = $tvStmt->fetchAll();
+
+                    foreach ($tvRows as $r) {
+                        $payMode = strtoupper($r['PaymentMode'] ?? 'CASH');
+                        $bills[] = [
+                            'BillID' => (int)$r['RefundID'],
+                            'BillNumber' => $r['RefundNumber'],
+                            'BillDate' => $r['Date'],
+                            'CustomerID' => (int)($r['CustomerID'] ?? 0),
+                            'CustomerCode' => $r['CustomerCode'] ?? '',
+                            'CustomerName' => $r['CustomerName'],
+                            'CustomerMobile' => $r['CustomerMobile'] ?? '',
+                            'ConsumerNo' => $r['ConsumerNo'] ?? '',
+                            'CustomerType' => $r['CustomerType'] ?? 'DOMESTIC',
+                            'Subtotal' => (float)$r['SecurityAmount'],
+                            'TaxAmount' => 0.0,
+                            'DiscountAmount' => (float)$r['DeductionAmount'],
+                            'TotalAmount' => (float)$r['RefundAmount'],
+                            'TotalPaise' => (int)$r['RefundAmountPaise'],
+                            'SettlementPaise' => (int)$r['RefundAmountPaise'],
+                            'PaidCash' => ($payMode === 'CASH') ? (float)$r['RefundAmount'] : 0.0,
+                            'PaidUPI' => ($payMode === 'UPI') ? (float)$r['RefundAmount'] : 0.0,
+                            'PaidHPPay' => 0.0,
+                            'PaidDues' => 0.0,
+                            'PaidBank' => ($payMode === 'BANK') ? (float)$r['RefundAmount'] : 0.0,
+                            'Status' => $r['Status'] ?? 'COMPLETED',
+                            'IsCancelled' => 0,
+                            'BillType' => 'TV_OUT',
+                            'RefundID' => (int)$r['RefundID'],
+                            'CylinderType' => $r['CylinderType'] ?? '14.2 KG Domestic',
+                            'CylindersReturned' => (int)($r['CylindersReturned'] ?? 1),
+                            'RegulatorReturned' => (int)($r['RegulatorReturned'] ?? 1),
+                            'PassbookReturned' => (int)($r['PassbookReturned'] ?? 1),
+                            'TvOutCharge' => (float)($r['TvOutCharge'] ?? 0),
+                            'AdminCharge' => (float)($r['AdminCharge'] ?? 0),
+                            'ImprestFund' => (float)($r['ImprestFund'] ?? 0),
+                            'SecurityAmount' => (float)$r['SecurityAmount'],
+                            'DeductionAmount' => (float)$r['DeductionAmount'],
+                            'RefundAmount' => (float)$r['RefundAmount']
+                        ];
+                    }
                 }
 
-                if (!empty($search)) {
-                    $sql .= " AND (b.BillNumber LIKE ? OR b.CustomerName LIKE ? OR b.CustomerMobile LIKE ? OR b.ConsumerNo LIKE ?)";
-                    $term = "%$search%";
-                    $params[] = $term;
-                    $params[] = $term;
-                    $params[] = $term;
-                    $params[] = $term;
-                }
-
-                $sql .= " ORDER BY b.BillID DESC LIMIT " . MAX_PAGE_SIZE;
-                $stmt = $db->prepare($sql);
-                $stmt->execute($params);
-                $bills = $stmt->fetchAll();
+                // Sort by Date DESC, ID DESC
+                usort($bills, function($a, $b) {
+                    $da = $a['BillDate'] ?? '';
+                    $db = $b['BillDate'] ?? '';
+                    if ($da !== $db) return strcmp($db, $da);
+                    return ($b['BillID'] ?? 0) <=> ($a['BillID'] ?? 0);
+                });
 
                 return ['ok' => true, 'data' => $bills];
 
+            case 'getTvOutBill':
+                $refId = (int)($payload['RefundID'] ?? 0);
+                $refNo = trim($payload['RefundNumber'] ?? '');
+                if ($refId > 0) {
+                    $stmt = $db->prepare("SELECT * FROM security_refunds WHERE RefundID = ?");
+                    $stmt->execute([$refId]);
+                } else {
+                    $stmt = $db->prepare("SELECT * FROM security_refunds WHERE RefundNumber = ?");
+                    $stmt->execute([$refNo]);
+                }
+                $record = $stmt->fetch();
+                if (!$record) {
+                    return ['ok' => false, 'error' => ['code' => 'NOT_FOUND', 'message' => 'TV Out bill not found.']];
+                }
+                return ['ok' => true, 'data' => $record];
+
             case 'getBill':
                 $billId = (int)($payload['BillID'] ?? 0);
-                $stmt = $db->prepare("SELECT * FROM bills WHERE BillID = ?");
-                $stmt->execute([$billId]);
+                $billNo = trim($payload['BillNumber'] ?? '');
+
+                if ($billId > 0) {
+                    $stmt = $db->prepare("SELECT * FROM bills WHERE BillID = ?");
+                    $stmt->execute([$billId]);
+                } else {
+                    $stmt = $db->prepare("SELECT * FROM bills WHERE BillNumber = ?");
+                    $stmt->execute([$billNo]);
+                }
                 $bill = $stmt->fetch();
 
                 if (!$bill) {
+                    // Check if it's a TV Out Refund
+                    if ($billId > 0) {
+                        $tvStmt = $db->prepare("SELECT * FROM security_refunds WHERE RefundID = ?");
+                        $tvStmt->execute([$billId]);
+                    } else {
+                        $tvStmt = $db->prepare("SELECT * FROM security_refunds WHERE RefundNumber = ?");
+                        $tvStmt->execute([$billNo]);
+                    }
+                    $tvRow = $tvStmt->fetch();
+                    if ($tvRow) {
+                        $tvRow['BillType'] = 'TV_OUT';
+                        return ['ok' => true, 'data' => $tvRow];
+                    }
                     return ['ok' => false, 'error' => ['code' => 'NOT_FOUND', 'message' => 'Bill not found.']];
                 }
 
                 // Get items
                 $itemStmt = $db->prepare("SELECT * FROM bill_items WHERE BillID = ?");
-                $itemStmt->execute([$billId]);
+                $itemStmt->execute([$bill['BillID']]);
                 $bill['items'] = $itemStmt->fetchAll();
 
                 // Get payments
                 $payStmt = $db->prepare("SELECT * FROM bill_payments WHERE BillID = ?");
-                $payStmt->execute([$billId]);
+                $payStmt->execute([$bill['BillID']]);
                 $bill['payments'] = $payStmt->fetchAll();
 
                 // Get customer if exists
@@ -115,6 +236,7 @@ class BillingController {
                 $customerName = trim($payload['CustomerName'] ?? 'Counter Walk-in');
                 $customerMobile = trim($payload['CustomerMobile'] ?? '');
                 $consumerNo = trim($payload['ConsumerNo'] ?? '');
+                $customerType = trim($payload['CustomerType'] ?? ($payload['CustType'] ?? 'DOMESTIC'));
 
                 // Calculate Cart in Integer Paise
                 $calculatedSubtotalPaise = 0;
@@ -210,18 +332,18 @@ class BillingController {
 
                     // Insert Bill
                     $insBill = $db->prepare("INSERT INTO bills (
-                        BillNumber, BillDate, CustomerID, CustomerName, CustomerMobile, ConsumerNo,
+                        BillNumber, BillDate, CustomerID, CustomerName, CustomerMobile, ConsumerNo, CustomerType,
                         Subtotal, TaxAmount, DiscountAmount, TotalAmount, TotalPaise, SettlementPaise,
-                        PaidCash, PaidUPI, PaidHPPay, PaidDues, PaidBank, Status,
+                        PaidCash, PaidUPI, PaidHPPay, PaidDues, PaidBank, Status, BillType,
                         CreatedBy, CreatedByName, CreatedAt, UpdatedAt
                     ) VALUES (
+                        ?, ?, ?, ?, ?, ?, ?,
                         ?, ?, ?, ?, ?, ?,
-                        ?, ?, ?, ?, ?, ?,
-                        ?, ?, ?, ?, ?, 'FINAL',
+                        ?, ?, ?, ?, ?, 'FINAL', 'SALE',
                         ?, ?, ?, ?
                     )");
                     $insBill->execute([
-                        $billNumber, $billDate, $customerId, $customerName, $customerMobile, $consumerNo,
+                        $billNumber, $billDate, $customerId, $customerName, $customerMobile, $consumerNo, $customerType,
                         $subtotal, $taxAmount, $discountAmount, $totalAmount, $totalBillPaise, $totalSettlementPaise,
                         $paidCash, $paidUPI, $paidHPPay, $paidDues, $paidBank,
                         $user['userId'], $user['fullName'], $now, $now
@@ -469,6 +591,7 @@ class BillingController {
                     return ['ok' => false, 'error' => ['code' => 'SERVER', 'message' => 'Failed to issue new connection: ' . $e->getMessage()]];
                 }
 
+            case 'saveTvOutBill':
             case 'refundSecurityDeposit':
                 if (!Auth::checkPermission($user, 'billing', 'create')) {
                     return ['ok' => false, 'error' => ['code' => 'FORBIDDEN', 'message' => 'Permission denied.']];
@@ -478,22 +601,34 @@ class BillingController {
                 $custName = trim($payload['CustomerName'] ?? '');
                 $mobile = trim($payload['CustomerMobile'] ?? ($payload['Mobile'] ?? ''));
                 $consumerNo = trim($payload['ConsumerNo'] ?? '');
+                $customerType = trim($payload['CustomerType'] ?? ($payload['CustType'] ?? 'DOMESTIC'));
                 $cylType = trim($payload['CylinderType'] ?? '14.2 KG Domestic');
                 $cylReturned = max(0, (int)($payload['CylindersReturned'] ?? 1));
-                $regReturned = !empty($payload['RegulatorReturned']) ? 1 : 0;
-                $passbookReturned = !empty($payload['PassbookReturned']) ? 1 : 0;
+                $regReturned = !empty($payload['RegulatorReturned']) ? (int)($payload['RegulatorReturned']) : 0;
+                $passbookReturned = !empty($payload['PassbookReturned']) ? (int)($payload['PassbookReturned']) : 0;
                 $cylDepositAmt = (float)($payload['CylinderDepositAmount'] ?? 0);
                 $regDepositAmt = (float)($payload['RegulatorDepositAmount'] ?? 0);
                 $svEra = trim($payload['OriginalSVEra'] ?? 'CURRENT');
                 $securityAmt = (float)($payload['SecurityAmount'] ?? ($cylDepositAmt + $regDepositAmt));
-                $deductionAmt = (float)($payload['DeductionAmount'] ?? 0);
-                $refundAmt = (float)($payload['RefundAmount'] ?? ($securityAmt - $deductionAmt));
+
+                // Dedicated Deductions: TV Out Charge, Administration Charge, Imprest Fund
+                $tvOutCharge = max(0, (float)($payload['TvOutCharge'] ?? 0));
+                $adminCharge = max(0, (float)($payload['AdminCharge'] ?? 0));
+                $imprestFund = max(0, (float)($payload['ImprestFund'] ?? 0));
+
+                $deductionAmt = (float)($payload['DeductionAmount'] ?? ($tvOutCharge + $adminCharge + $imprestFund));
+                if ($deductionAmt <= 0 && ($tvOutCharge + $adminCharge + $imprestFund) > 0) {
+                    $deductionAmt = $tvOutCharge + $adminCharge + $imprestFund;
+                }
+
+                $refundAmt = (float)($payload['RefundAmount'] ?? max(0, $securityAmt - $deductionAmt));
                 $payMode = strtoupper(trim($payload['PaymentMode'] ?? 'CASH'));
                 $refNo = trim($payload['ReferenceNo'] ?? '');
-                $reason = trim($payload['Reason'] ?? 'SV Connection Surrender / Equipment Return');
+                $reason = trim($payload['Reason'] ?? 'TV Out / SV Connection Surrender & Equipment Return');
                 $refundDate = $payload['Date'] ?? date('Y-m-d');
+                $voucherType = trim($payload['VoucherType'] ?? 'TV_OUT');
 
-                if (empty($custName) || $refundAmt <= 0) {
+                if (empty($custName) || $refundAmt < 0) {
                     return ['ok' => false, 'error' => ['code' => 'VALIDATION', 'message' => 'Customer name and valid refund amount are required.']];
                 }
 
@@ -502,34 +637,34 @@ class BillingController {
                     $now = date('Y-m-d H:i:s');
                     $datePrefix = date('Ymd', strtotime($refundDate));
                     
-                    // Generate Unique Refund Number
+                    // Generate Unique TV Out Voucher Number: TVO-YYYYMMDD-XXXX
                     $seqStmt = $db->prepare("SELECT COUNT(*) FROM security_refunds WHERE Date = ?");
                     $seqStmt->execute([$refundDate]);
                     $seq = (int)$seqStmt->fetchColumn() + 1;
-                    $refundNumber = sprintf("REFUND-%s-%04d", $datePrefix, $seq);
+                    $refundNumber = sprintf("TVO-%s-%04d", $datePrefix, $seq);
 
                     $refundPaise = (int)round($refundAmt * 100);
 
                     // 1. Insert into security_refunds
                     $ins = $db->prepare("INSERT INTO security_refunds (
-                        RefundNumber, Date, CustomerID, CustomerName, CustomerMobile, ConsumerNo,
+                        RefundNumber, Date, CustomerID, CustomerName, CustomerMobile, ConsumerNo, CustomerType,
                         CylinderType, CylindersReturned, RegulatorReturned, PassbookReturned,
-                        SecurityAmount, DeductionAmount, RefundAmount, RefundAmountPaise,
-                        CylinderDepositAmount, RegulatorDepositAmount, OriginalSVEra,
-                        PaymentMode, ReferenceNo, Reason, Status, CreatedBy, CreatedAt, UpdatedAt
+                        SecurityAmount, DeductionAmount, TvOutCharge, AdminCharge, ImprestFund,
+                        RefundAmount, RefundAmountPaise, CylinderDepositAmount, RegulatorDepositAmount, OriginalSVEra,
+                        PaymentMode, ReferenceNo, Reason, Status, VoucherType, CreatedBy, CreatedAt, UpdatedAt
                     ) VALUES (
-                        ?, ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?, ?, ?, ?,
                         ?, ?, ?, ?,
-                        ?, ?, ?, ?,
-                        ?, ?, ?,
-                        ?, ?, ?, 'COMPLETED', ?, ?, ?
+                        ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?, ?,
+                        ?, ?, ?, 'COMPLETED', ?, ?, ?, ?
                     )");
                     $ins->execute([
-                        $refundNumber, $refundDate, $custId, $custName, $mobile, $consumerNo,
+                        $refundNumber, $refundDate, $custId, $custName, $mobile, $consumerNo, $customerType,
                         $cylType, $cylReturned, $regReturned, $passbookReturned,
-                        $securityAmt, $deductionAmt, $refundAmt, $refundPaise,
-                        $cylDepositAmt, $regDepositAmt, $svEra,
-                        $payMode, $refNo, $reason, $user['userId'], $now, $now
+                        $securityAmt, $deductionAmt, $tvOutCharge, $adminCharge, $imprestFund,
+                        $refundAmt, $refundPaise, $cylDepositAmt, $regDepositAmt, $svEra,
+                        $payMode, $refNo, $reason, $voucherType, $user['userId'], $now, $now
                     ]);
                     $refundId = (int)$db->lastInsertId();
 
