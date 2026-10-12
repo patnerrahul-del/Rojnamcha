@@ -14,6 +14,8 @@ let availableCustomers = [];
 let cart = [];
 
 export const billingModule = {
+  activeMode: 'sale', // 'sale' | 'sv_package' | 'tv_out'
+
   async init() {
     this.renderContainer();
     await Promise.all([this.loadItems(), this.loadCustomers(), this.loadRecentBills()]);
@@ -25,32 +27,42 @@ export const billingModule = {
     if (!root) return;
 
     root.innerHTML = `
-      <div style="display:grid; grid-template-columns: 1fr 380px; gap:20px;" class="pos-layout-grid">
-        <!-- Left: Cart & Product Selector -->
-        <div>
-          <!-- Customer & Header Card -->
-          <div class="card" style="margin-bottom:16px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:12px;">
-              <h2 style="font-size:18px; font-weight:800; color:var(--text-main); display:flex; align-items:center; gap:8px;">
-                <i class="fa-solid fa-cash-register" style="color:var(--primary);"></i> POS Counter Billing
-              </h2>
-              <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button id="pos-hawker-sale-btn" class="btn btn-info btn-sm" style="background:#0284c7; border-color:#0284c7; color:#fff;" title="Record Hawker Dispatch Sale & HP Pay Collection">
-                  <i class="fa-solid fa-truck-ramp-box"></i> Hawker Dispatch Sale
-                </button>
-                <button id="pos-tv-out-btn" class="btn btn-warning btn-sm" style="background:#d97706; border-color:#d97706; color:#fff; font-weight:700;" title="TV Out Billing / Connection Surrender & Cash Refund">
-                  <i class="fa-solid fa-arrow-right-from-bracket"></i> TV Out Billing
-                </button>
-                <button id="pos-refund-sv-btn" class="btn btn-warning btn-sm" style="display:none;">Return Security Deposit</button>
-                <button id="pos-sv-package-btn" class="btn btn-secondary btn-sm">
-                  <i class="fa-solid fa-box-open"></i> New SV Package
-                </button>
-                <button id="pos-quick-cust-btn" class="btn btn-outline btn-sm">
-                  <i class="fa-solid fa-user-plus"></i> Add Customer
-                </button>
-              </div>
-            </div>
+      <!-- POS Counter Billing Unified Screen -->
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px;">
+          <h2 style="font-size:18px; font-weight:800; color:var(--text-main); display:flex; align-items:center; gap:8px; margin:0;">
+            <i class="fa-solid fa-cash-register" style="color:var(--primary);"></i> POS Counter Billing
+          </h2>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button id="pos-hawker-sale-btn" class="btn btn-info btn-sm" style="background:#0284c7; border-color:#0284c7; color:#fff;" title="Record Hawker Dispatch Sale & HP Pay Collection">
+              <i class="fa-solid fa-truck-ramp-box"></i> Hawker Dispatch Sale
+            </button>
+            <button id="pos-quick-cust-btn" class="btn btn-outline btn-sm">
+              <i class="fa-solid fa-user-plus"></i> Add Customer
+            </button>
+          </div>
+        </div>
 
+        <!-- Mode Navigation Tabs: Sale / SV Package / TV Out -->
+        <div class="pos-billing-mode-tabs" style="display:flex; gap:8px; background:var(--bg-body); padding:6px; border-radius:var(--radius-md); border:1px solid var(--border);">
+          <button type="button" class="btn btn-sm pos-mode-tab active" data-mode="sale" style="flex:1; padding:9px 12px; font-weight:700; border-radius:var(--radius-sm); font-size:13px; display:flex; align-items:center; justify-content:center; gap:8px;">
+            <i class="fa-solid fa-cart-shopping"></i> 1. Regular Sale / Refill
+          </button>
+          <button type="button" class="btn btn-sm pos-mode-tab" data-mode="sv_package" style="flex:1; padding:9px 12px; font-weight:700; border-radius:var(--radius-sm); font-size:13px; display:flex; align-items:center; justify-content:center; gap:8px;">
+            <i class="fa-solid fa-box-open"></i> 2. New SV Package Billing
+          </button>
+          <button type="button" class="btn btn-sm pos-mode-tab" data-mode="tv_out" style="flex:1; padding:9px 12px; font-weight:700; border-radius:var(--radius-sm); font-size:13px; display:flex; align-items:center; justify-content:center; gap:8px;">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i> 3. TV Out Billing (Caution Money Return)
+          </button>
+        </div>
+      </div>
+
+      <!-- VIEW 1: REGULAR SALE & NEW SV PACKAGE BILLING VIEW -->
+      <div id="pos-main-sale-view" style="display:grid; grid-template-columns: 1fr 380px; gap:20px;" class="pos-layout-grid">
+        <!-- Left: Customer, Presets, Product Selector & Cart -->
+        <div>
+          <!-- Customer & Header Details Card -->
+          <div class="card" style="margin-bottom:16px;">
             <div style="display:flex; flex-direction:column; gap:12px;">
               <div style="display:grid; grid-template-columns: 2fr 1fr; gap:12px;">
                 <div class="form-group" style="margin-bottom:0;">
@@ -72,6 +84,26 @@ export const billingModule = {
                 </div>
               </div>
 
+              <!-- SV Specific Customer Fields (Visible only in New SV Package Mode) -->
+              <div id="pos-sv-cust-fields" style="display:none; grid-template-columns: 1fr 1fr 1fr 1fr; gap:10px; background:var(--bg-body); padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border);">
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:11px;">Customer Name *</label>
+                  <input type="text" id="pos-sv-name" class="form-control" placeholder="Full Name">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:11px;">Mobile *</label>
+                  <input type="tel" id="pos-sv-mobile" class="form-control" placeholder="10-digit mobile" maxlength="10">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:11px;">Village / Address</label>
+                  <input type="text" id="pos-sv-addr" class="form-control" placeholder="Address">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:11px;">Aadhaar Last 4 / Consumer No</label>
+                  <input type="text" id="pos-sv-aadhaar" class="form-control" placeholder="Aadhaar / Cons #">
+                </div>
+              </div>
+
               <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
                 <div class="form-group" style="margin-bottom:0;">
                   <label class="form-label">Billing Date</label>
@@ -82,6 +114,28 @@ export const billingModule = {
                   <input type="number" id="pos-discount" class="form-control" value="0" min="0" step="any">
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- SV Package Presets Bar (Visible in New SV Package Mode) -->
+          <div id="pos-sv-presets-bar" style="display:none; padding:12px; border:1px solid #bae6fd; background:#f0f9ff; border-radius:var(--radius-md); margin-bottom:16px; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+            <div>
+              <div style="font-weight:700; font-size:13px; color:#0369a1;"><i class="fa-solid fa-boxes-packing"></i> Choose SV Package Preset:</div>
+              <div style="font-size:11.5px; color:var(--text-muted);">Loads package items directly into the cart below (rates and quantities remain editable)</div>
+            </div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button type="button" class="btn btn-outline btn-sm sv-preset-btn active" data-preset="sbc_14" style="font-weight:700;">
+                <i class="fa-solid fa-bottle-water"></i> 14.2 KG SBC (Single)
+              </button>
+              <button type="button" class="btn btn-outline btn-sm sv-preset-btn" data-preset="dbc_14" style="font-weight:700;">
+                <i class="fa-solid fa-boxes-stacked"></i> 14.2 KG DBC (Double)
+              </button>
+              <button type="button" class="btn btn-outline btn-sm sv-preset-btn" data-preset="commercial_19" style="font-weight:700;">
+                <i class="fa-solid fa-fire"></i> 19 KG Commercial
+              </button>
+              <button type="button" class="btn btn-outline btn-sm sv-preset-btn" data-preset="custom" style="font-weight:700; color:var(--text-muted);">
+                <i class="fa-solid fa-rotate-left"></i> Clear / Custom
+              </button>
             </div>
           </div>
 
@@ -211,7 +265,7 @@ export const billingModule = {
                 Settlement Balanced (₹0.00 difference)
               </div>
 
-              <!-- Generate & Print Action Buttons -->
+              <!-- Action Button -->
               <button id="pos-generate-bill-btn" class="btn btn-primary" style="width:100%; height:44px; font-size:15px; margin-bottom:8px;">
                 <i class="fa-solid fa-file-invoice-dollar"></i> Generate & Save Bill
               </button>
@@ -220,7 +274,206 @@ export const billingModule = {
         </div>
       </div>
 
-      <!-- Recent Bills Log Table -->
+      <!-- VIEW 2: TV OUT (TERMINATION & CAUTION MONEY REFUND) INLINE BILLING VIEW -->
+      <div id="pos-main-tvout-view" style="display:none; grid-template-columns: 1fr 380px; gap:20px;" class="pos-layout-grid">
+        <!-- Left: Consumer Details, Equipment Returned, Security Deposit, Deductions -->
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <!-- Card 1: Consumer & Surrender Details -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title" style="color:#d97706;"><i class="fa-solid fa-user-xmark"></i> Consumer & Connection Details</div>
+            </div>
+            <div class="card-body">
+              <div style="display:grid; grid-template-columns: 1.5fr 1fr; gap:12px; margin-bottom:12px;">
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label"><i class="fa-solid fa-search"></i> Select Existing Customer</label>
+                  <select id="tv-cust-select" class="form-select">
+                    <option value="">-- Choose Existing Consumer --</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label"><i class="fa-solid fa-hashtag"></i> Consumer Number *</label>
+                  <input type="text" id="tv-cust-consumerno" class="form-control" placeholder="e.g. 123456" required>
+                </div>
+              </div>
+
+              <div style="display:grid; grid-template-columns: 1.5fr 1fr 1fr; gap:12px;">
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label"><i class="fa-solid fa-user"></i> Full Consumer Name *</label>
+                  <input type="text" id="tv-cust-name" class="form-control" placeholder="Consumer Name" required>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label"><i class="fa-solid fa-phone"></i> Mobile *</label>
+                  <input type="tel" id="tv-cust-mobile" class="form-control" placeholder="10-digit mobile" maxlength="10" required>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label"><i class="fa-solid fa-id-badge"></i> Cust Type</label>
+                  <input list="pos-cust-types" id="tv-cust-type" class="form-control" value="DOMESTIC">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2: Equipment Returned & SV Tariff Era -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title" style="color:var(--primary);"><i class="fa-solid fa-boxes-packing"></i> Equipment Returned & Original SV Era</div>
+            </div>
+            <div class="card-body">
+              <div style="display:grid; grid-template-columns: 1.2fr 2fr; gap:12px; margin-bottom:14px; align-items:center;">
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label"><i class="fa-solid fa-fire"></i> Cylinder Variant</label>
+                  <select id="tv-cyl-type" class="form-select">
+                    <option value="14.2 KG Domestic" selected>14.2 KG Domestic</option>
+                    <option value="19 KG Commercial">19 KG Commercial</option>
+                    <option value="5 KG Domestic">5 KG Domestic</option>
+                    <option value="47.5 KG Commercial">47.5 KG Commercial</option>
+                  </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label"><i class="fa-solid fa-clock-rotate-left"></i> Original SV Tariff Era Preset</label>
+                  <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                    <button type="button" class="btn btn-outline btn-sm tv-era-btn active" data-era="standard" style="font-size:11.5px; font-weight:700;">
+                      Current Standard (₹1,450 + ₹250)
+                    </button>
+                    <button type="button" class="btn btn-outline btn-sm tv-era-btn" data-era="vintage" style="font-size:11.5px; font-weight:700;">
+                      Vintage Pre-2015 (₹900 + ₹100)
+                    </button>
+                    <button type="button" class="btn btn-outline btn-sm tv-era-btn" data-era="commercial" style="font-size:11.5px; font-weight:700;">
+                      19 KG (₹3,500 + ₹250)
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Checkboxes for Equipment Returned -->
+              <div style="display:grid; grid-template-columns: 1.5fr 1.2fr 1.2fr; gap:12px; background:var(--bg-body); padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border); align-items:center;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <input type="checkbox" id="tv-chk-cyl" checked style="width:18px; height:18px; accent-color:#16a34a;">
+                  <label for="tv-chk-cyl" style="margin:0; font-weight:700; font-size:12.5px;">Cylinder Returned</label>
+                  <input type="number" id="tv-qty-cyl" class="form-control text-center" value="1" min="1" max="10" style="width:54px; height:30px; display:inline-block; font-weight:700;">
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <input type="checkbox" id="tv-chk-reg" checked style="width:18px; height:18px; accent-color:#16a34a;">
+                  <label for="tv-chk-reg" style="margin:0; font-weight:700; font-size:12.5px;">Regulator Returned</label>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <input type="checkbox" id="tv-chk-passbook" checked style="width:18px; height:18px; accent-color:#16a34a;">
+                  <label for="tv-chk-passbook" style="margin:0; font-weight:700; font-size:12.5px;">Passbook Surrendered</label>
+                </div>
+              </div>
+              <div style="font-size:11px; color:#16a34a; margin-top:6px; font-weight:600;">
+                <i class="fa-solid fa-circle-check"></i> Cylinder return automatically adds +1 Empty Cylinder to Godown inventory stock.
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3 & 4: Security Deposit Held & Itemized Deductions -->
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+            <!-- Card 3: Security Deposit Held -->
+            <div class="card" style="border:1px solid #bfdbfe; background:#f0f9ff;">
+              <div class="card-header" style="background:#e0f2fe; padding:10px 14px;">
+                <div class="card-title" style="font-size:13px; color:#0369a1;"><i class="fa-solid fa-shield-halved"></i> Security Deposit Held (₹)</div>
+              </div>
+              <div class="card-body" style="padding:14px;">
+                <div class="form-group" style="margin-bottom:8px;">
+                  <label class="form-label" style="font-size:11.5px;">Cylinder Deposit Rate (₹)</label>
+                  <input type="number" id="tv-cyl-deposit" class="form-control num-font" value="1450.00" min="0" step="any">
+                </div>
+                <div class="form-group" style="margin-bottom:8px;">
+                  <label class="form-label" style="font-size:11.5px;">Regulator Deposit (₹)</label>
+                  <input type="number" id="tv-reg-deposit" class="form-control num-font" value="250.00" min="0" step="any">
+                </div>
+                <div class="form-group" style="margin-bottom:0; border-top:1px dashed #bae6fd; padding-top:8px;">
+                  <label class="form-label" style="font-size:12px; font-weight:800; color:#0369a1;">Total Security Held (₹)</label>
+                  <input type="number" id="tv-sec-total" class="form-control num-font" value="1700.00" readonly style="font-weight:800; background:#fff; color:#0369a1;">
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 4: Deductions Cut From Security -->
+            <div class="card" style="border:1px solid #fecaca; background:#fff5f5;">
+              <div class="card-header" style="background:#fee2e2; padding:10px 14px;">
+                <div class="card-title" style="font-size:13px; color:#b91c1c;"><i class="fa-solid fa-scissors"></i> Deductions Cut From Security (₹)</div>
+              </div>
+              <div class="card-body" style="padding:14px;">
+                <div class="form-group" style="margin-bottom:8px;">
+                  <label class="form-label" style="font-size:11.5px; color:#b91c1c;">TV Out Charge (₹) *</label>
+                  <input type="number" id="tv-charge-tvout" class="form-control num-font" value="100.00" min="0" step="any">
+                </div>
+                <div class="form-group" style="margin-bottom:8px;">
+                  <label class="form-label" style="font-size:11.5px; color:#b91c1c;">Administration Charge (₹) *</label>
+                  <input type="number" id="tv-charge-admin" class="form-control num-font" value="100.00" min="0" step="any">
+                </div>
+                <div class="form-group" style="margin-bottom:8px;">
+                  <label class="form-label" style="font-size:11.5px; color:#b91c1c;">Imprest Fund / Custom (₹)</label>
+                  <input type="number" id="tv-charge-imprest" class="form-control num-font" value="0.00" min="0" step="any" placeholder="Custom deduction">
+                </div>
+                <div class="form-group" style="margin-bottom:0; border-top:1px dashed #fecaca; padding-top:8px;">
+                  <label class="form-label" style="font-size:12px; font-weight:800; color:#b91c1c;">Total Deductions Cut (₹)</label>
+                  <input type="number" id="tv-deduction-total" class="form-control num-font" value="200.00" readonly style="font-weight:800; background:#fff; color:#b91c1c;">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: TV Out Settlement & Cash Refund Payout -->
+        <div>
+          <div class="card" style="position:sticky; top:20px; border:2px solid #86efac; background:#f0fdf4;">
+            <div class="card-header" style="background:#dcfce7;">
+              <div class="card-title" style="color:#15803d;"><i class="fa-solid fa-hand-holding-dollar"></i> Net Refund Payout</div>
+            </div>
+
+            <div class="card-body" style="padding:18px 20px;">
+              <!-- Large Highlight Display: Net Cash Returned -->
+              <div style="background:#dcfce7; border:2px solid #86efac; border-radius:var(--radius-md); padding:16px; text-align:center; margin-bottom:18px;">
+                <div style="font-size:12px; font-weight:700; text-transform:uppercase; color:#15803d; letter-spacing:0.5px;">Net Cash Returned to Customer</div>
+                <div style="font-size:11px; color:#166534; margin-top:2px;">(Total Security Deposit − Total Deductions)</div>
+                <div id="tv-net-refund-display" class="num-font" style="font-size:28px; font-weight:900; color:#15803d; margin-top:8px;">
+                  ₹1,500.00
+                </div>
+                <input type="hidden" id="tv-net-refund-val" value="1500.00">
+              </div>
+
+              <!-- Payout Form Fields -->
+              <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:18px;">
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label"><i class="fa-solid fa-money-bill-transfer"></i> Payout Payment Mode</label>
+                  <select id="tv-pay-mode" class="form-select">
+                    <option value="CASH" selected>CASH (Paid from Daily Counter Till)</option>
+                    <option value="UPI">UPI / Digital Transfer</option>
+                    <option value="BANK">BANK / NEFT / Cheque</option>
+                  </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label"><i class="fa-solid fa-calendar-day"></i> Voucher Date</label>
+                  <input type="date" id="tv-bill-date" class="form-control" value="${utils.today()}">
+                </div>
+
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label"><i class="fa-solid fa-receipt"></i> Reference / Cheque No</label>
+                  <input type="text" id="tv-ref-no" class="form-control" placeholder="Optional reference">
+                </div>
+
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label"><i class="fa-solid fa-note-sticky"></i> Remarks / Reason</label>
+                  <input type="text" id="tv-reason" class="form-control" value="TV Out Connection Surrender & Caution Money Refund">
+                </div>
+              </div>
+
+              <!-- Save TV Out Button -->
+              <button id="pos-save-tvout-btn" class="btn btn-warning" style="width:100%; height:46px; font-size:15px; font-weight:800; background:#d97706; border-color:#d97706; color:#fff; box-shadow:0 2px 6px rgba(217,119,6,0.3);">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i> Save & Issue TV Out Voucher
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Bills Log Table (Common to all views) -->
       <div class="card" style="margin-top:24px;">
         <div class="card-header">
           <div class="card-title"><i class="fa-solid fa-clock-rotate-left"></i> Today's Bills Register</div>
@@ -254,12 +507,218 @@ export const billingModule = {
     this.bindEvents();
   },
 
+  setMode(mode) {
+    this.activeMode = mode;
+    document.querySelectorAll('.pos-mode-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.mode === mode);
+    });
+
+    const saleView = document.getElementById('pos-main-sale-view');
+    const tvoutView = document.getElementById('pos-main-tvout-view');
+    const svPresetsBar = document.getElementById('pos-sv-presets-bar');
+    const svCustFields = document.getElementById('pos-sv-cust-fields');
+    const genBillBtn = document.getElementById('pos-generate-bill-btn');
+
+    if (mode === 'tv_out') {
+      if (saleView) saleView.style.display = 'none';
+      if (tvoutView) tvoutView.style.display = 'grid';
+      this.calcTvOut();
+    } else {
+      if (saleView) saleView.style.display = 'grid';
+      if (tvoutView) tvoutView.style.display = 'none';
+
+      if (mode === 'sv_package') {
+        if (svPresetsBar) svPresetsBar.style.display = 'flex';
+        if (svCustFields) svCustFields.style.display = 'grid';
+        if (genBillBtn) {
+          genBillBtn.innerHTML = '<i class="fa-solid fa-box-open"></i> Issue New SV Connection & Bill';
+          genBillBtn.className = 'btn btn-info';
+          genBillBtn.style.background = '#0284c7';
+          genBillBtn.style.borderColor = '#0284c7';
+          genBillBtn.style.color = '#fff';
+        }
+        if (!cart.length || (cart.length === 1 && cart[0].Category === 'SALE')) {
+          this.loadSVPackagePreset('sbc_14');
+        }
+      } else {
+        // Regular sale
+        if (svPresetsBar) svPresetsBar.style.display = 'none';
+        if (svCustFields) svCustFields.style.display = 'none';
+        if (genBillBtn) {
+          genBillBtn.innerHTML = '<i class="fa-solid fa-file-invoice-dollar"></i> Generate & Save Bill';
+          genBillBtn.className = 'btn btn-primary';
+          genBillBtn.style.background = '';
+          genBillBtn.style.borderColor = '';
+          genBillBtn.style.color = '';
+        }
+      }
+    }
+  },
+
+  loadSVPackagePreset(presetKey) {
+    document.querySelectorAll('.sv-preset-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.preset === presetKey);
+    });
+
+    if (presetKey === 'custom') {
+      cart = [];
+      this.renderCart();
+      return;
+    }
+
+    const templates = {
+      sbc_14: [
+        { name: '14.2 KG Domestic Cylinder Security Deposit', cat: 'SECURITY_DEPOSIT', cyl: '14.2 KG Domestic', qty: 1, rate: 2200 },
+        { name: 'LPG Pressure Regulator Security Deposit', cat: 'SECURITY_DEPOSIT', cyl: '14.2 KG Domestic', qty: 1, rate: 250 },
+        { name: 'Suraksha LPG Hose Pipe (1.5M)', cat: 'EQUIPMENT', cyl: '14.2 KG Domestic', qty: 1, rate: 190 },
+        { name: 'Domestic Gas Consumer Card (DGCC Blue Book)', cat: 'SERVICE', cyl: '14.2 KG Domestic', qty: 1, rate: 59 },
+        { name: '14.2 KG Domestic Refill (First Cylinder Gas)', cat: 'CYLINDER', cyl: '14.2 KG Domestic', qty: 1, rate: 1042 }
+      ],
+      dbc_14: [
+        { name: '14.2 KG Domestic Cylinder Security Deposit', cat: 'SECURITY_DEPOSIT', cyl: '14.2 KG Domestic', qty: 2, rate: 2200 },
+        { name: 'LPG Pressure Regulator Security Deposit', cat: 'SECURITY_DEPOSIT', cyl: '14.2 KG Domestic', qty: 1, rate: 250 },
+        { name: 'Suraksha LPG Hose Pipe (1.5M)', cat: 'EQUIPMENT', cyl: '14.2 KG Domestic', qty: 1, rate: 190 },
+        { name: 'Domestic Gas Consumer Card (DGCC Blue Book)', cat: 'SERVICE', cyl: '14.2 KG Domestic', qty: 1, rate: 59 },
+        { name: '14.2 KG Domestic Refill (First Cylinder Gas)', cat: 'CYLINDER', cyl: '14.2 KG Domestic', qty: 1, rate: 1042 }
+      ],
+      commercial_19: [
+        { name: '19 KG Commercial Cylinder Security Deposit', cat: 'SECURITY_DEPOSIT', cyl: '19 KG Commercial', qty: 1, rate: 3500 },
+        { name: 'Commercial High Pressure / LOT Regulator', cat: 'EQUIPMENT', cyl: '19 KG Commercial', qty: 1, rate: 450 },
+        { name: '19 KG Commercial Refill (First Gas)', cat: 'CYLINDER', cyl: '19 KG Commercial', qty: 1, rate: 1850 }
+      ]
+    };
+
+    const tItems = templates[presetKey];
+    if (!tItems) return;
+
+    cart = tItems.map(ti => {
+      const match = availableItems.find(ai => ai.ItemName && ai.ItemName.toLowerCase().includes(ti.name.toLowerCase().slice(0, 10)));
+      return {
+        ItemID: match ? match.ItemID : null,
+        ItemName: ti.name,
+        Category: ti.cat,
+        CylinderType: ti.cyl,
+        Quantity: ti.qty,
+        Rate: ti.rate,
+        RatePaise: utils.toPaise(ti.rate),
+        TaxPercent: 0,
+        Total: ti.qty * ti.rate
+      };
+    });
+
+    this.renderCart();
+  },
+
+  setTvOutEra(eraKey) {
+    document.querySelectorAll('.tv-era-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.era === eraKey);
+    });
+
+    const cylDep = document.getElementById('tv-cyl-deposit');
+    const regDep = document.getElementById('tv-reg-deposit');
+    const cylType = document.getElementById('tv-cyl-type');
+
+    if (eraKey === 'standard') {
+      if (cylDep) cylDep.value = '1450.00';
+      if (regDep) regDep.value = '250.00';
+      if (cylType) cylType.value = '14.2 KG Domestic';
+    } else if (eraKey === 'vintage') {
+      if (cylDep) cylDep.value = '900.00';
+      if (regDep) regDep.value = '100.00';
+      if (cylType) cylType.value = '14.2 KG Domestic';
+    } else if (eraKey === 'commercial') {
+      if (cylDep) cylDep.value = '3500.00';
+      if (regDep) regDep.value = '250.00';
+      if (cylType) cylType.value = '19 KG Commercial';
+    }
+    this.calcTvOut();
+  },
+
+  calcTvOut() {
+    const cDep = parseFloat(document.getElementById('tv-cyl-deposit')?.value) || 0;
+    const rDep = parseFloat(document.getElementById('tv-reg-deposit')?.value) || 0;
+    const isCyl = document.getElementById('tv-chk-cyl')?.checked;
+    const isReg = document.getElementById('tv-chk-reg')?.checked;
+    const cQty = isCyl ? (parseInt(document.getElementById('tv-qty-cyl')?.value) || 1) : 0;
+    const rQty = isReg ? 1 : 0;
+
+    const totalSec = (cDep * cQty) + (rDep * rQty);
+    const secEl = document.getElementById('tv-sec-total');
+    if (secEl) secEl.value = totalSec.toFixed(2);
+
+    const tvOut = Math.max(0, parseFloat(document.getElementById('tv-charge-tvout')?.value) || 0);
+    const admin = Math.max(0, parseFloat(document.getElementById('tv-charge-admin')?.value) || 0);
+    const imprest = Math.max(0, parseFloat(document.getElementById('tv-charge-imprest')?.value) || 0);
+    const totalDed = tvOut + admin + imprest;
+
+    const dedEl = document.getElementById('tv-deduction-total');
+    if (dedEl) dedEl.value = totalDed.toFixed(2);
+
+    const netRefund = Math.max(0, totalSec - totalDed);
+    const netDisp = document.getElementById('tv-net-refund-display');
+    const netVal = document.getElementById('tv-net-refund-val');
+
+    if (netDisp) netDisp.textContent = utils.formatCurrency(netRefund);
+    if (netVal) netVal.value = netRefund.toFixed(2);
+  },
+
   bindEvents() {
+    // Mode Switcher Tabs
+    document.querySelectorAll('.pos-mode-tab').forEach(tab => {
+      tab.addEventListener('click', (e) => {
+        const mode = e.currentTarget.dataset.mode;
+        this.setMode(mode);
+      });
+    });
+
+    // SV Presets Toolbar
+    document.querySelectorAll('.sv-preset-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const preset = e.currentTarget.dataset.preset;
+        this.loadSVPackagePreset(preset);
+      });
+    });
+
+    // TV Out Era Presets
+    document.querySelectorAll('.tv-era-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const era = e.currentTarget.dataset.era;
+        this.setTvOutEra(era);
+      });
+    });
+
+    // TV Out Live Calculations
+    ['tv-cyl-deposit', 'tv-reg-deposit', 'tv-charge-tvout', 'tv-charge-admin', 'tv-charge-imprest', 'tv-qty-cyl'].forEach(id => {
+      document.getElementById(id)?.addEventListener('input', () => this.calcTvOut());
+    });
+    ['tv-chk-cyl', 'tv-chk-reg'].forEach(id => {
+      document.getElementById(id)?.addEventListener('change', () => this.calcTvOut());
+    });
+
+    // TV Out Customer Select Auto-fill
+    document.getElementById('tv-cust-select')?.addEventListener('change', (e) => {
+      const sel = e.target;
+      const opt = sel.options[sel.selectedIndex];
+      if (opt && opt.value) {
+        const nameIn = document.getElementById('tv-cust-name');
+        const mobIn = document.getElementById('tv-cust-mobile');
+        const consIn = document.getElementById('tv-cust-consumerno');
+        const typeIn = document.getElementById('tv-cust-type');
+        if (nameIn) nameIn.value = opt.dataset.name || '';
+        if (mobIn) mobIn.value = opt.dataset.mob || '';
+        if (consIn) consIn.value = opt.dataset.cons || '';
+        if (typeIn && opt.dataset.type) typeIn.value = opt.dataset.type;
+      }
+    });
+
+    // Save TV Out Voucher Button
+    document.getElementById('pos-save-tvout-btn')?.addEventListener('click', () => this.generateTvOutBill());
+
     // Add to cart
-    document.getElementById('pos-add-to-cart-btn').addEventListener('click', () => this.addItemToCart());
+    document.getElementById('pos-add-to-cart-btn')?.addEventListener('click', () => this.addItemToCart());
 
     // Clear cart
-    document.getElementById('pos-clear-cart-btn').addEventListener('click', () => {
+    document.getElementById('pos-clear-cart-btn')?.addEventListener('click', () => {
       cart = [];
       this.renderCart();
     });
@@ -267,35 +726,28 @@ export const billingModule = {
     // Discount & Payments live updates
     const paymentInputs = ['pos-discount', 'pos-pay-cash', 'pos-pay-upi', 'pos-pay-hppay', 'pos-pay-dues', 'pos-pay-bank'];
     paymentInputs.forEach(id => {
-      document.getElementById(id).addEventListener('input', () => this.updateTotalsAndGuard());
+      document.getElementById(id)?.addEventListener('input', () => this.updateTotalsAndGuard());
     });
 
     // Auto fill buttons
-    document.getElementById('pos-auto-cash-btn').addEventListener('click', (e) => {
+    document.getElementById('pos-auto-cash-btn')?.addEventListener('click', (e) => {
       e.preventDefault();
       this.autoFillPayment('pos-pay-cash');
     });
 
-    document.getElementById('pos-auto-upi-btn').addEventListener('click', (e) => {
+    document.getElementById('pos-auto-upi-btn')?.addEventListener('click', (e) => {
       e.preventDefault();
       this.autoFillPayment('pos-pay-upi');
     });
 
     // Generate Bill
-    document.getElementById('pos-generate-bill-btn').addEventListener('click', () => this.generateBill());
+    document.getElementById('pos-generate-bill-btn')?.addEventListener('click', () => this.generateBill());
 
     // Quick Add Customer
-    document.getElementById('pos-quick-cust-btn').addEventListener('click', () => this.openQuickCustomerModal());
+    document.getElementById('pos-quick-cust-btn')?.addEventListener('click', () => this.openQuickCustomerModal());
 
     // Hawker Dispatch Sale from POS
     document.getElementById('pos-hawker-sale-btn')?.addEventListener('click', () => this.openHawkerDispatchModal());
-
-    // SV Package
-    document.getElementById('pos-sv-package-btn').addEventListener('click', () => this.openSVPackageModal());
-
-    // TV Out Billing (Refund)
-    document.getElementById('pos-tv-out-btn')?.addEventListener('click', () => this.openSecurityRefundModal());
-    document.getElementById('pos-refund-sv-btn')?.addEventListener('click', () => this.openSecurityRefundModal());
 
     // Customer selection auto-fills Customer Type (CustType)
     document.getElementById('pos-customer-select')?.addEventListener('change', (e) => {
@@ -318,10 +770,10 @@ export const billingModule = {
     });
 
     // Reload Bills
-    document.getElementById('pos-reload-bills-btn').addEventListener('click', () => this.loadRecentBills());
+    document.getElementById('pos-reload-bills-btn')?.addEventListener('click', () => this.loadRecentBills());
 
     // Filter Bills
-    document.getElementById('pos-search-bill').addEventListener('input', utils.debounce((e) => {
+    document.getElementById('pos-search-bill')?.addEventListener('input', utils.debounce((e) => {
       this.loadRecentBills(e.target.value);
     }, 300));
   },
@@ -347,13 +799,18 @@ export const billingModule = {
     if (res.ok && res.data) {
       availableCustomers = res.data;
       const select = document.getElementById('pos-customer-select');
+      const tvSelect = document.getElementById('tv-cust-select');
+      const opts = availableCustomers.map(c => `
+        <option value="${c.CustomerID}" data-name="${utils.escapeHtml(c.Name)}" data-mob="${c.Mobile}" data-cons="${c.ConsumerNo || ''}" data-type="${utils.escapeHtml(c.ConnectionType || 'DOMESTIC')}">
+          ${utils.escapeHtml(c.Name)} (${c.Mobile}) ${c.ConsumerNo ? '• #' + c.ConsumerNo : ''}
+        </option>
+      `).join('');
+
       if (select) {
-        select.innerHTML = '<option value="">Counter Walk-in Customer</option>' +
-          availableCustomers.map(c => `
-            <option value="${c.CustomerID}" data-name="${utils.escapeHtml(c.Name)}" data-mob="${c.Mobile}" data-cons="${c.ConsumerNo || ''}" data-type="${utils.escapeHtml(c.ConnectionType || 'DOMESTIC')}">
-              ${utils.escapeHtml(c.Name)} (${c.Mobile}) ${c.ConsumerNo ? '• #' + c.ConsumerNo : ''}
-            </option>
-          `).join('');
+        select.innerHTML = '<option value="">Counter Walk-in Customer</option>' + opts;
+      }
+      if (tvSelect) {
+        tvSelect.innerHTML = '<option value="">-- Choose Existing Consumer --</option>' + opts;
       }
     }
   },
@@ -582,6 +1039,65 @@ export const billingModule = {
       return;
     }
 
+    // If New SV Package Mode, validate customer fields and call issueNewConnectionPackage
+    if (this.activeMode === 'sv_package') {
+      const svName = document.getElementById('pos-sv-name')?.value.trim();
+      const svMobile = document.getElementById('pos-sv-mobile')?.value.trim();
+      const svAddr = document.getElementById('pos-sv-addr')?.value.trim() || '';
+      const svAadhaar = document.getElementById('pos-sv-aadhaar')?.value.trim() || '';
+
+      if (!custId && (!svName || !svMobile)) {
+        ui.warn('Customer Name and 10-digit Mobile are required for New SV Connection Package!');
+        return;
+      }
+
+      const payload = {
+        BillDate: document.getElementById('pos-bill-date').value,
+        CustomerID: custId,
+        CustomerName: custId ? selectedOption.dataset.name : svName,
+        CustomerMobile: custId ? selectedOption.dataset.mob : svMobile,
+        Mobile: custId ? selectedOption.dataset.mob : svMobile,
+        Address: svAddr,
+        AadhaarLast4: svAadhaar,
+        ConsumerNo: custId ? selectedOption.dataset.cons : svAadhaar,
+        CustomerType: document.getElementById('pos-customer-type')?.value.trim() || 'DOMESTIC',
+        DiscountAmount: parseFloat(document.getElementById('pos-discount')?.value || 0),
+        PaidCash: parseFloat(document.getElementById('pos-pay-cash')?.value || 0),
+        PaidUPI: parseFloat(document.getElementById('pos-pay-upi')?.value || 0),
+        PaidHPPay: parseFloat(document.getElementById('pos-pay-hppay')?.value || 0),
+        PaidDues: duesAmount,
+        PaidBank: parseFloat(document.getElementById('pos-pay-bank')?.value || 0),
+        items: cart,
+        packageItems: cart
+      };
+
+      const res = await api('issueNewConnectionPackage', payload, { loaderMessage: 'Issuing New SV Connection & Bill...' });
+      if (res.ok && res.data) {
+        ui.success(`New SV Connection & Bill ${res.data.BillNumber} issued successfully!`);
+        const shouldPrint = await ui.confirm(`Bill ${res.data.BillNumber} generated successfully! Would you like to print the receipt now?`, 'Print Bill', 'Print Receipt');
+        if (shouldPrint) {
+          const fullBillRes = await api('getBill', { BillID: res.data.BillID });
+          if (fullBillRes.ok && fullBillRes.data) {
+            printEngine.openPreview('pos_invoice', fullBillRes.data, '80mm');
+          }
+        }
+        cart = [];
+        this.initCart();
+        ['pos-discount', 'pos-pay-cash', 'pos-pay-upi', 'pos-pay-hppay', 'pos-pay-dues', 'pos-pay-bank'].forEach(id => {
+          document.getElementById(id).value = '0';
+        });
+        custSelect.value = '';
+        if (document.getElementById('pos-sv-name')) document.getElementById('pos-sv-name').value = '';
+        if (document.getElementById('pos-sv-mobile')) document.getElementById('pos-sv-mobile').value = '';
+        if (document.getElementById('pos-sv-addr')) document.getElementById('pos-sv-addr').value = '';
+        if (document.getElementById('pos-sv-aadhaar')) document.getElementById('pos-sv-aadhaar').value = '';
+        await this.loadCustomers();
+        this.loadRecentBills();
+      }
+      return;
+    }
+
+    // Regular Bill flow
     const payload = {
       BillDate: document.getElementById('pos-bill-date').value,
       CustomerID: custId,
@@ -618,6 +1134,94 @@ export const billingModule = {
         document.getElementById(id).value = '0';
       });
       custSelect.value = '';
+      this.loadRecentBills();
+    }
+  },
+
+  async generateTvOutBill() {
+    const custSel = document.getElementById('tv-cust-select');
+    const custId = custSel?.value ? parseInt(custSel.value) : null;
+    const name = document.getElementById('tv-cust-name')?.value.trim();
+    const mobile = document.getElementById('tv-cust-mobile')?.value.trim();
+    const consumerNo = document.getElementById('tv-cust-consumerno')?.value.trim();
+    const custType = document.getElementById('tv-cust-type')?.value.trim() || 'DOMESTIC';
+    const date = document.getElementById('tv-bill-date')?.value || utils.today();
+
+    if (!name || !mobile) {
+      ui.warn('Consumer Name and Mobile Number are required for TV Out!');
+      return;
+    }
+
+    const cylRet = document.getElementById('tv-chk-cyl')?.checked ? (parseInt(document.getElementById('tv-qty-cyl')?.value) || 1) : 0;
+    const regRet = document.getElementById('tv-chk-reg')?.checked ? 1 : 0;
+    const passRet = document.getElementById('tv-chk-passbook')?.checked ? 1 : 0;
+
+    const cylDeposit = parseFloat(document.getElementById('tv-cyl-deposit')?.value) || 0;
+    const regDeposit = parseFloat(document.getElementById('tv-reg-deposit')?.value) || 0;
+    const secTotal = parseFloat(document.getElementById('tv-sec-total')?.value) || (cylDeposit + regDeposit);
+
+    const tvOutCharge = parseFloat(document.getElementById('tv-charge-tvout')?.value) || 0;
+    const adminCharge = parseFloat(document.getElementById('tv-charge-admin')?.value) || 0;
+    const imprestFund = parseFloat(document.getElementById('tv-charge-imprest')?.value) || 0;
+    const totalDeductions = tvOutCharge + adminCharge + imprestFund;
+
+    const netRefund = Math.max(0, secTotal - totalDeductions);
+
+    if (secTotal <= 0) {
+      ui.warn('Total Security Deposit must be greater than zero!');
+      return;
+    }
+
+    const confirmed = await ui.confirm(
+      `Issue TV Out Voucher for ${name}?\n\n• Total Security Held: ${utils.formatCurrency(secTotal)}\n• Total Deductions: -${utils.formatCurrency(totalDeductions)}\n• Net Cash Returned: ${utils.formatCurrency(netRefund)}\n• Empty Cylinder Returned: ${cylRet}`,
+      'Confirm TV Out Voucher',
+      'Issue TV Out Voucher'
+    );
+    if (!confirmed) return;
+
+    const payload = {
+      CustomerID: custId,
+      CustomerName: name,
+      CustomerMobile: mobile,
+      Mobile: mobile,
+      ConsumerNo: consumerNo,
+      CustomerType: custType,
+      Date: date,
+      CylinderType: document.getElementById('tv-cyl-type')?.value || '14.2 KG Domestic',
+      CylindersReturned: cylRet,
+      RegulatorReturned: regRet,
+      PassbookReturned: passRet,
+      CylinderDepositAmount: cylDeposit,
+      RegulatorDepositAmount: regDeposit,
+      SecurityAmount: secTotal,
+      TvOutCharge: tvOutCharge,
+      AdminCharge: adminCharge,
+      ImprestFund: imprestFund,
+      DeductionAmount: totalDeductions,
+      RefundAmount: netRefund,
+      PaymentMode: document.getElementById('tv-pay-mode')?.value || 'CASH',
+      ReferenceNo: document.getElementById('tv-ref-no')?.value.trim() || '',
+      Reason: document.getElementById('tv-reason')?.value.trim() || 'TV Out Connection Surrender & Caution Money Refund',
+      VoucherType: 'TV_OUT'
+    };
+
+    const res = await api('saveTvOutBill', payload, { loaderMessage: 'Processing TV Out & updating stock/cash...' });
+    if (res.ok && res.data) {
+      ui.success(`TV Out Voucher ${res.data.RefundNumber} created successfully! Net Return: ${utils.formatCurrency(res.data.RefundAmount)}`);
+
+      // Print voucher preview
+      printEngine.openPreview('security_refund', res.data, '80mm');
+
+      // Reset TV Out form
+      if (custSel) custSel.value = '';
+      document.getElementById('tv-cust-name').value = '';
+      document.getElementById('tv-cust-mobile').value = '';
+      document.getElementById('tv-cust-consumerno').value = '';
+      document.getElementById('tv-ref-no').value = '';
+      this.calcTvOut();
+
+      // Reload register
+      await this.loadCustomers();
       this.loadRecentBills();
     }
   },
@@ -936,668 +1540,32 @@ export const billingModule = {
   },
 
   /**
-   * New SV Package Builder with Custom Product Selection & Templates
+   * New SV Package Builder - Switches to New SV Package mode in POS screen
    */
-  async openSVPackageModal() {
-    // Standard template presets
-    const templates = {
-      sbc_14: {
-        name: 'Domestic 14.2 KG SBC (Single Bottle Connection)',
-        cylType: '14.2 KG Domestic',
-        items: [
-          { name: '14.2 KG Domestic Cylinder Security Deposit', cat: 'SECURITY_DEPOSIT', qty: 1, rate: 2200 },
-          { name: 'LPG Pressure Regulator Security Deposit', cat: 'SECURITY_DEPOSIT', qty: 1, rate: 250 },
-          { name: 'Suraksha LPG Hose Pipe (1.5M)', cat: 'EQUIPMENT', qty: 1, rate: 190 },
-          { name: 'Domestic Gas Consumer Card (DGCC Blue Book)', cat: 'SERVICE', qty: 1, rate: 59 },
-          { name: '14.2 KG Domestic Refill (First Cylinder Gas)', cat: 'CYLINDER', qty: 1, rate: 1042 }
-        ]
-      },
-      dbc_14: {
-        name: 'Domestic 14.2 KG DBC (Double Bottle Connection)',
-        cylType: '14.2 KG Domestic',
-        items: [
-          { name: '14.2 KG Domestic Cylinder Security Deposit (2 Nos)', cat: 'SECURITY_DEPOSIT', qty: 2, rate: 2200 },
-          { name: 'LPG Pressure Regulator Security Deposit', cat: 'SECURITY_DEPOSIT', qty: 1, rate: 250 },
-          { name: 'Suraksha LPG Hose Pipe (1.5M)', cat: 'EQUIPMENT', qty: 1, rate: 190 },
-          { name: 'Domestic Gas Consumer Card (DGCC Blue Book)', cat: 'SERVICE', qty: 1, rate: 59 },
-          { name: '14.2 KG Domestic Refill (First Cylinder Gas)', cat: 'CYLINDER', qty: 1, rate: 1042 }
-        ]
-      },
-      commercial_19: {
-        name: 'Commercial 19 KG Connection Package',
-        cylType: '19 KG Commercial',
-        items: [
-          { name: '19 KG Commercial Cylinder Security Deposit', cat: 'SECURITY_DEPOSIT', qty: 1, rate: 3500 },
-          { name: 'Commercial High Pressure / LOT Regulator', cat: 'EQUIPMENT', qty: 1, rate: 450 },
-          { name: '19 KG Commercial Refill (First Gas)', cat: 'CYLINDER', qty: 1, rate: 1850 }
-        ]
-      },
-      custom: {
-        name: 'Custom Package (Choose Any Catalog Products)',
-        cylType: '14.2 KG Domestic',
-        items: []
-      }
-    };
-
-    let selectedPackageItems = [];
-
-    // Helper to load items from template
-    const loadTemplateItems = (tmplKey) => {
-      const tmpl = templates[tmplKey];
-      if (!tmpl) return [];
-      const list = [];
-      tmpl.items.forEach(ti => {
-        // Try matching catalog item
-        const match = availableItems.find(ai => ai.ItemName.toLowerCase().includes(ti.name.toLowerCase().slice(0, 10))) || null;
-        list.push({
-          ItemID: match ? match.ItemID : null,
-          ItemName: ti.name,
-          Category: ti.cat,
-          CylinderType: tmpl.cylType,
-          Quantity: ti.qty,
-          Rate: ti.rate,
-          Total: ti.qty * ti.rate
-        });
-      });
-      return list;
-    };
-
-    selectedPackageItems = loadTemplateItems('sbc_14');
-
-    const productDropdownOptions = availableItems.map(it => `
-      <option value="${it.ItemID}" data-name="${utils.escapeHtml(it.ItemName)}" data-rate="${it.Rate}" data-cat="${it.Category}" data-cyl="${it.CylinderType || ''}">
-        ${utils.escapeHtml(it.ItemName)} (${utils.formatCurrency(it.Rate)}) - [${it.Category}]
-      </option>
-    `).join('');
-
-    const html = `
-      <div style="display:flex; flex-direction:column; gap:10px; text-align:left;">
-        <!-- Section 1: Consumer Profile -->
-        <div class="modal-section-card">
-          <div class="modal-section-header">
-            <i class="fa-solid fa-id-card"></i>
-            <span>New SV Consumer Profile</span>
-          </div>
-          <div class="form-grid">
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-user"></i> Full Legal Name *</label>
-              <input type="text" id="sv-name" class="form-control" placeholder="Consumer Full Name" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-phone"></i> Mobile Number *</label>
-              <input type="tel" id="sv-mobile" class="form-control" placeholder="10-digit mobile" maxlength="10" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-location-dot"></i> Delivery Address</label>
-              <input type="text" id="sv-addr" class="form-control" placeholder="House, Village, Landmark">
-            </div>
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-fingerprint"></i> Aadhaar (Last 4 Digits)</label>
-              <input type="text" id="sv-aadhaar" class="form-control" maxlength="4" placeholder="Last 4 digits">
-            </div>
-          </div>
-        </div>
-
-        <!-- Section 2: Package Preset & Custom Item Selector -->
-        <div class="modal-section-card">
-          <div class="modal-section-header" style="justify-content:space-between; flex-wrap:wrap;">
-            <div style="display:flex; align-items:center; gap:8px;">
-              <i class="fa-solid fa-boxes-packing"></i>
-              <span>SV Package Products Builder</span>
-            </div>
-            <div style="display:flex; align-items:center; gap:8px;">
-              <label style="font-size:12px; font-weight:700; margin:0;">Template:</label>
-              <select id="sv-template-sel" class="form-select form-select-sm" style="font-size:12px; width:220px;">
-                <option value="sbc_14" selected>Domestic 14.2 KG SBC (Single)</option>
-                <option value="dbc_14">Domestic 14.2 KG DBC (Double)</option>
-                <option value="commercial_19">Commercial 19 KG Package</option>
-                <option value="custom">-- Custom Package (Blank) --</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Add Product Row -->
-          <div style="display:flex; gap:8px; align-items:flex-end; background:var(--bg-body); padding:10px; border-radius:var(--r-sm); border:1px solid var(--border); margin-bottom:10px;">
-            <div style="flex:1;">
-              <label class="form-label" style="font-size:11px; margin-bottom:3px;"><i class="fa-solid fa-plus-circle"></i> Add Any Product / Accessory from Catalog:</label>
-              <select id="sv-add-prod-select" class="form-select form-select-sm">
-                <option value="">-- Choose Catalog Product to Add --</option>
-                ${productDropdownOptions}
-              </select>
-            </div>
-            <button type="button" id="sv-add-prod-btn" class="btn btn-secondary btn-sm" style="height:32px;">
-              <i class="fa-solid fa-cart-plus"></i> Add Item
-            </button>
-          </div>
-
-          <!-- Dynamic Products Table -->
-          <div style="max-height:380px; overflow-y:auto; overflow-x:hidden; border:1px solid var(--border); border-radius:var(--r-sm); background:var(--bg-surface);">
-            <table class="table table-sm" style="margin:0; font-size:12px; width:100%;">
-              <thead>
-                <tr style="background:var(--bg-body);">
-                  <th style="min-width:220px;">Product / Component</th>
-                  <th style="width:130px;">Category</th>
-                  <th style="width:80px; text-align:center;">Qty</th>
-                  <th style="width:110px; text-align:right;">Rate (₹)</th>
-                  <th style="width:110px; text-align:right;">Total (₹)</th>
-                  <th style="width:45px; text-align:center;"></th>
-                </tr>
-              </thead>
-              <tbody id="sv-pkg-table-body">
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Package Summary Bar -->
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding:8px 12px; background:var(--bg-body); border-radius:var(--r-sm); border:1px solid var(--border);">
-            <span style="font-size:12px; font-weight:700;">Total Package Items: <strong id="sv-pkg-item-count">0</strong></span>
-            <span style="font-size:15px; font-weight:800; color:var(--primary);">Grand Total: <strong id="sv-pkg-grand-total">₹0.00</strong></span>
-          </div>
-        </div>
-      </div>
-    `;
-
-    setTimeout(() => {
-      const tbody = document.getElementById('sv-pkg-table-body');
-      const countEl = document.getElementById('sv-pkg-item-count');
-      const totalEl = document.getElementById('sv-pkg-grand-total');
-      const tmplSel = document.getElementById('sv-template-sel');
-      const addProdSel = document.getElementById('sv-add-prod-select');
-      const addProdBtn = document.getElementById('sv-add-prod-btn');
-
-      const renderTable = () => {
-        if (!tbody) return;
-        if (!selectedPackageItems.length) {
-          tbody.innerHTML = '<tr><td colspan="6" class="text-center" style="padding:16px; color:var(--text-muted);">No items in package. Add products above.</td></tr>';
-          if (countEl) countEl.textContent = '0';
-          if (totalEl) totalEl.textContent = utils.formatCurrency(0);
-          return;
-        }
-
-        tbody.innerHTML = selectedPackageItems.map((it, idx) => `
-          <tr>
-            <td><strong>${utils.escapeHtml(it.ItemName)}</strong></td>
-            <td><span class="badge badge-info" style="font-size:10px;">${it.Category || 'EQUIPMENT'}</span></td>
-            <td class="text-center">
-              <input type="number" class="form-control form-control-sm text-center sv-item-qty" data-idx="${idx}" value="${it.Quantity}" min="1" max="10" style="height:26px; font-size:12px; width:55px; margin:auto;">
-            </td>
-            <td class="text-right">
-              <input type="number" class="form-control form-control-sm text-right sv-item-rate" data-idx="${idx}" value="${it.Rate}" min="0" step="any" style="height:26px; font-size:12px; width:85px; margin-left:auto;">
-            </td>
-            <td class="text-right num-font font-bold" style="vertical-align:middle;">${utils.formatCurrency(it.Total)}</td>
-            <td class="text-center" style="vertical-align:middle;">
-              <button type="button" class="btn btn-outline btn-sm sv-item-del" data-idx="${idx}" style="color:var(--color-danger); border:none; padding:2px 6px;">
-                <i class="fa-solid fa-xmark"></i>
-              </button>
-            </td>
-          </tr>
-        `).join('');
-
-        const sumTot = selectedPackageItems.reduce((acc, i) => acc + (Number(i.Total) || 0), 0);
-        if (countEl) countEl.textContent = selectedPackageItems.length;
-        if (totalEl) totalEl.textContent = utils.formatCurrency(sumTot);
-
-        // Bind input listeners
-        tbody.querySelectorAll('.sv-item-qty').forEach(qIn => {
-          qIn.addEventListener('input', (e) => {
-            const idx = parseInt(e.target.dataset.idx);
-            const qty = Math.max(1, parseInt(e.target.value) || 1);
-            selectedPackageItems[idx].Quantity = qty;
-            selectedPackageItems[idx].Total = qty * selectedPackageItems[idx].Rate;
-            renderTable();
-          });
-        });
-
-        tbody.querySelectorAll('.sv-item-rate').forEach(rIn => {
-          rIn.addEventListener('input', (e) => {
-            const idx = parseInt(e.target.dataset.idx);
-            const rate = Math.max(0, parseFloat(e.target.value) || 0);
-            selectedPackageItems[idx].Rate = rate;
-            selectedPackageItems[idx].Total = selectedPackageItems[idx].Quantity * rate;
-            renderTable();
-          });
-        });
-
-        tbody.querySelectorAll('.sv-item-del').forEach(delBtn => {
-          delBtn.addEventListener('click', (e) => {
-            const idx = parseInt(e.currentTarget.dataset.idx);
-            selectedPackageItems.splice(idx, 1);
-            renderTable();
-          });
-        });
-      };
-
-      tmplSel?.addEventListener('change', (e) => {
-        selectedPackageItems = loadTemplateItems(e.target.value);
-        renderTable();
-      });
-
-      addProdBtn?.addEventListener('click', () => {
-        const itId = parseInt(addProdSel.value);
-        if (!itId) return;
-        const itObj = availableItems.find(i => i.ItemID === itId);
-        if (itObj) {
-          selectedPackageItems.push({
-            ItemID: itObj.ItemID,
-            ItemName: itObj.ItemName,
-            Category: itObj.Category,
-            CylinderType: itObj.CylinderType || '14.2 KG Domestic',
-            Quantity: 1,
-            Rate: Number(itObj.Rate),
-            Total: Number(itObj.Rate)
-          });
-          addProdSel.value = '';
-          renderTable();
-        }
-      });
-
-      renderTable();
-    }, 150);
-
-    const resData = await ui.formModal(html, 'Issue New Connection SV Package', () => {
-      const name = document.getElementById('sv-name').value.trim();
-      const mobile = document.getElementById('sv-mobile').value.trim();
-      if (!name || !mobile) {
-        Swal.showValidationMessage('Customer Name and Mobile are required!');
-        return false;
-      }
-      if (!selectedPackageItems.length) {
-        Swal.showValidationMessage('Select at least one product component in the package!');
-        return false;
-      }
-
-      return {
-        CustomerName: name,
-        Mobile: mobile,
-        Address: document.getElementById('sv-addr').value.trim(),
-        AadhaarLast4: document.getElementById('sv-aadhaar').value.trim(),
-        packageItems: selectedPackageItems.map(p => ({
-          ItemID: p.ItemID,
-          ItemName: p.ItemName,
-          Category: p.Category,
-          CylinderType: p.CylinderType,
-          Quantity: p.Quantity,
-          Rate: p.Rate,
-          RatePaise: utils.toPaise(p.Rate),
-          TaxPercent: 0,
-          Total: p.Total
-        }))
-      };
-    }, { maxWidth: '920px' });
-
-    if (resData) {
-      const totalPkgAmount = resData.packageItems.reduce((sum, it) => sum + it.Total, 0);
-      resData.PaidCash = totalPkgAmount;
-
-      const apiRes = await api('issueNewConnectionPackage', resData, { loaderMessage: 'Registering SV connection & bill...' });
-      if (apiRes.ok && apiRes.data) {
-        ui.success(`New SV Connection & Bill ${apiRes.data.BillNumber} issued successfully!`);
-        await this.loadCustomers();
-        this.loadRecentBills();
-      }
-    }
+  openSVPackageModal() {
+    this.setMode('sv_package');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   },
 
   /**
-   * Return Security Deposit (SV Surrender / Connection Closure) Workflow
-   * Includes Custom Amount Input for Vintage/Old SV Presets
+   * TV Out Billing / Security Deposit Refund - Switches to TV Out mode in POS screen
    */
-  /**
-   * TV Out Billing / Security Deposit Refund (Connection Closure / Surrender)
-   * Deducts TV Out Charge, Admin Charge, and Imprest Fund / Custom Deduction from Total Security
-   * Returns remaining cash to customer and restores empty cylinder to godown stock
-   */
-  async openSecurityRefundModal(preselectedCustomer = null) {
-    const custOptions = availableCustomers.map(c => `
-      <option value="${c.CustomerID}" data-name="${utils.escapeHtml(c.Name)}" data-mob="${c.Mobile}" data-cons="${c.ConsumerNo || ''}" data-type="${utils.escapeHtml(c.ConnectionType || 'DOMESTIC')}" ${preselectedCustomer && preselectedCustomer.CustomerID === c.CustomerID ? 'selected' : ''}>
-        ${utils.escapeHtml(c.Name)} (${c.Mobile}) ${c.ConsumerNo ? '- ' + c.ConsumerNo : ''}
-      </option>
-    `).join('');
-
-    const html = `
-      <div style="display:flex; flex-direction:column; gap:10px; text-align:left;">
-        <!-- Section 1: Customer Selection & CustType -->
-        <div class="modal-section-card">
-          <div class="modal-section-header">
-            <i class="fa-solid fa-user-check"></i>
-            <span>Consumer Identification & Verification</span>
-          </div>
-          <div class="form-grid">
-            <div class="form-group" style="grid-column:1 / -1;">
-              <label class="form-label"><i class="fa-solid fa-address-book"></i> Select Registered Consumer</label>
-              <select id="sr-cust-select" class="form-select">
-                <option value="">-- Manual Walk-in / Not in Dropdown --</option>
-                ${custOptions}
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-user"></i> Customer Name *</label>
-              <input type="text" id="sr-cust-name" class="form-control" value="${preselectedCustomer ? utils.escapeHtml(preselectedCustomer.Name) : ''}" required placeholder="Full Name">
-            </div>
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-phone"></i> Mobile Number *</label>
-              <input type="tel" id="sr-cust-mobile" class="form-control" value="${preselectedCustomer ? utils.escapeHtml(preselectedCustomer.Mobile) : ''}" required placeholder="10-digit mobile" maxlength="10">
-            </div>
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-hashtag"></i> Consumer Number</label>
-              <input type="text" id="sr-cust-consumerno" class="form-control" value="${preselectedCustomer ? utils.escapeHtml(preselectedCustomer.ConsumerNo || '') : ''}" placeholder="HPCL Consumer No">
-            </div>
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-id-badge"></i> Cust Type</label>
-              <select id="sr-cust-type" class="form-select">
-                <option value="DOMESTIC" selected>DOMESTIC</option>
-                <option value="COMMERCIAL">COMMERCIAL</option>
-                <option value="INSTITUTIONAL">INSTITUTIONAL</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <!-- Section 2: Equipment Returned (Inventory Check) -->
-        <div class="modal-section-card">
-          <div class="modal-section-header">
-            <i class="fa-solid fa-boxes-stacked"></i>
-            <span>Equipments Surrendered / Returned to Godown</span>
-          </div>
-          <div style="background:var(--bg-surface); padding:10px 14px; border:1px solid var(--border); border-radius:var(--r-sm); display:flex; flex-direction:column; gap:10px;">
-            <div style="display:grid; grid-template-columns: 2fr 1fr; gap:12px; align-items:center;">
-              <div class="form-group" style="margin-bottom:0;">
-                <label class="form-label" style="margin-bottom:4px;"><i class="fa-solid fa-gas-pump"></i> Cylinder Variant</label>
-                <select id="sr-cylinder-type" class="form-select">
-                  <option value="14.2 KG Domestic" selected>14.2 KG Domestic</option>
-                  <option value="19 KG Commercial">19 KG Commercial</option>
-                  <option value="5 KG Domestic">5 KG Domestic</option>
-                  <option value="5 KG Commercial">5 KG Commercial</option>
-                </select>
-              </div>
-              <div class="form-group" style="margin-bottom:0;">
-                <label class="form-label" style="margin-bottom:4px;">Cylinder Qty</label>
-                <div style="display:flex; align-items:center; gap:6px;">
-                  <input type="checkbox" id="sr-chk-cylinder" checked style="cursor:pointer; width:18px; height:18px;">
-                  <input type="number" id="sr-qty-cylinder" class="form-control text-center" value="1" min="1" max="10">
-                </div>
-              </div>
-            </div>
-
-            <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px dashed var(--border); padding-top:8px;">
-              <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; cursor:pointer;">
-                <input type="checkbox" id="sr-chk-regulator" checked style="cursor:pointer; width:16px; height:16px;">
-                <span>LPG Pressure Regulator Returned</span>
-              </label>
-              <input type="number" id="sr-qty-regulator" class="form-control text-center" value="1" min="0" max="5" style="width:70px;">
-            </div>
-
-            <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px dashed var(--border); padding-top:8px;">
-              <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; cursor:pointer;">
-                <input type="checkbox" id="sr-chk-passbook" checked style="cursor:pointer; width:16px; height:16px;">
-                <span>DGCC Blue Book / SV Subscription Voucher Surrendered</span>
-              </label>
-              <span style="font-size:11.5px; color:var(--text-muted);">Physical Document</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Section 3: Old SV Era & Total Security Deposit -->
-        <div class="modal-section-card">
-          <div class="modal-section-header">
-            <i class="fa-solid fa-calculator"></i>
-            <span>Security Deposit Held (Caution Money)</span>
-          </div>
-          <div class="form-grid">
-            <div class="form-group" style="grid-column:1 / -1;">
-              <label class="form-label"><i class="fa-solid fa-clock-rotate-left"></i> Original SV Tariff Era Preset</label>
-              <select id="sr-sv-era" class="form-select">
-                <option value="CURRENT" selected>Current Modern Tariff (Cylinder ₹2,200 + Regulator ₹250 = ₹2,450)</option>
-                <option value="2012_2019">2012 – 2019 Era (Cylinder ₹1,400 + Regulator ₹150 = ₹1,550)</option>
-                <option value="2006_2011">2006 – 2011 Era (Cylinder ₹900 + Regulator ₹100 = ₹1,000)</option>
-                <option value="PRE_2006">Pre-2006 Vintage Era (Cylinder ₹500 + Regulator ₹50 = ₹550)</option>
-                <option value="CUSTOM">Custom / Manual Exact Amount (Type directly from Old SV Paper)</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-fire"></i> Cyl Security Rate (₹) *</label>
-              <input type="number" id="sr-cyl-deposit" class="form-control num-font" value="2200.00" min="0" step="any" required>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-gauge-high"></i> Reg Security (₹) *</label>
-              <input type="number" id="sr-reg-deposit" class="form-control num-font" value="250.00" min="0" step="any" required>
-            </div>
-
-            <div class="form-group" style="grid-column:1 / -1;">
-              <label class="form-label" style="font-weight:700;"><i class="fa-solid fa-coins"></i> Total Security Deposit Held (₹)</label>
-              <input type="number" id="sr-sec-amount" class="form-control num-font" value="2450.00" min="0" step="any" readonly style="font-weight:800; background:var(--bg-body);">
-            </div>
-          </div>
-        </div>
-
-        <!-- Section 4: Deductions Cut From Security (TV Out, Admin, Imprest) -->
-        <div class="modal-section-card" style="border:1px solid #fecaca; background:#fff5f5;">
-          <div class="modal-section-header" style="color:#b91c1c;">
-            <i class="fa-solid fa-scissors"></i>
-            <span>Deductions Cut From Total Security</span>
-          </div>
-          <div class="form-grid">
-            <div class="form-group">
-              <label class="form-label" style="color:#b91c1c;"><i class="fa-solid fa-receipt"></i> TV Out Charge (₹) *</label>
-              <input type="number" id="sr-tv-out-charge" class="form-control num-font" value="100.00" min="0" step="any">
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" style="color:#b91c1c;"><i class="fa-solid fa-file-invoice"></i> Administration Charge (₹) *</label>
-              <input type="number" id="sr-admin-charge" class="form-control num-font" value="100.00" min="0" step="any">
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" style="color:#b91c1c;"><i class="fa-solid fa-piggy-bank"></i> Imprest Fund / Custom (₹)</label>
-              <input type="number" id="sr-imprest-fund" class="form-control num-font" value="0.00" min="0" step="any" placeholder="Custom deduction">
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" style="font-weight:700; color:#b91c1c;"><i class="fa-solid fa-minus-circle"></i> Total Deductions Cut (₹)</label>
-              <input type="number" id="sr-deduction" class="form-control num-font" value="200.00" readonly style="font-weight:800; color:#b91c1c; background:#fee2e2;">
-            </div>
-          </div>
-        </div>
-
-        <!-- Section 5: Net Cash Return & Payment Disbursal -->
-        <div class="modal-section-card" style="border:1px solid #86efac; background:#f0fdf4;">
-          <div class="modal-section-header" style="color:#15803d;">
-            <i class="fa-solid fa-hand-holding-dollar"></i>
-            <span>Net Cash Return to Customer (Refund Payout)</span>
-          </div>
-          <div class="form-grid">
-            <div class="form-group" style="grid-column:1 / -1;">
-              <label class="form-label" style="font-size:14px; font-weight:800; color:#15803d;">
-                Net Cash Returned to Customer (Total Security − Total Deductions)
-              </label>
-              <input type="number" id="sr-net-refund" class="form-control num-font" value="2250.00" readonly style="font-weight:800; font-size:20px; color:#15803d; background:#dcfce7; border:2px solid #86efac; text-align:center;">
-            </div>
-
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-money-bill-transfer"></i> Payout Payment Mode</label>
-              <select id="sr-pay-mode" class="form-select">
-                <option value="CASH" selected>CASH (Paid from Daily Counter Till)</option>
-                <option value="UPI">UPI / Digital Transfer</option>
-                <option value="BANK">BANK / NEFT / Cheque</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-receipt"></i> Reference / Txn / Cheque No</label>
-              <input type="text" id="sr-ref-no" class="form-control" placeholder="Optional reference">
-            </div>
-
-            <div class="form-group" style="grid-column:1 / -1;">
-              <label class="form-label"><i class="fa-solid fa-note-sticky"></i> Voucher Notes / Remarks</label>
-              <input type="text" id="sr-reason" class="form-control" value="TV Out Connection Surrender & Caution Money Refund" placeholder="Reason for TV Out">
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-
-    setTimeout(() => {
-      const custSel = document.getElementById('sr-cust-select');
-      const nameIn = document.getElementById('sr-cust-name');
-      const mobIn = document.getElementById('sr-cust-mobile');
-      const consIn = document.getElementById('sr-cust-consumerno');
-      const typeSel = document.getElementById('sr-cust-type');
-      const eraSel = document.getElementById('sr-sv-era');
-      const cylDepIn = document.getElementById('sr-cyl-deposit');
-      const regDepIn = document.getElementById('sr-reg-deposit');
-      const secIn = document.getElementById('sr-sec-amount');
-      const tvOutIn = document.getElementById('sr-tv-out-charge');
-      const adminIn = document.getElementById('sr-admin-charge');
-      const imprestIn = document.getElementById('sr-imprest-fund');
-      const dedIn = document.getElementById('sr-deduction');
-      const netIn = document.getElementById('sr-net-refund');
-      const cylSel = document.getElementById('sr-cylinder-type');
-      const chkCyl = document.getElementById('sr-chk-cylinder');
-      const qtyCyl = document.getElementById('sr-qty-cylinder');
-      const chkReg = document.getElementById('sr-chk-regulator');
-      const qtyReg = document.getElementById('sr-qty-regulator');
-
-      const calcNet = () => {
-        const cQty = chkCyl?.checked ? (parseInt(qtyCyl?.value) || 1) : 0;
-        const cRate = parseFloat(cylDepIn?.value) || 0;
-        const cTotal = cQty * cRate;
-
-        const rQty = chkReg?.checked ? (parseInt(qtyReg?.value) || 1) : 0;
-        const rRate = parseFloat(regDepIn?.value) || 0;
-        const rTotal = rQty * rRate;
-
-        const totalSec = cTotal + rTotal;
-        if (secIn) secIn.value = totalSec.toFixed(2);
-
-        const tvOut = parseFloat(tvOutIn?.value) || 0;
-        const admin = parseFloat(adminIn?.value) || 0;
-        const imprest = parseFloat(imprestIn?.value) || 0;
-        const totalDed = tvOut + admin + imprest;
-
-        if (dedIn) dedIn.value = totalDed.toFixed(2);
-
-        const net = Math.max(0, totalSec - totalDed);
-        if (netIn) netIn.value = net.toFixed(2);
-      };
-
-      [cylDepIn, regDepIn, tvOutIn, adminIn, imprestIn, qtyCyl, qtyReg].forEach(el => {
-        el?.addEventListener('input', calcNet);
-      });
-
-      [chkCyl, chkReg].forEach(el => {
-        el?.addEventListener('change', calcNet);
-      });
-
-      eraSel?.addEventListener('change', () => {
-        const era = eraSel.value;
-        if (era === 'CURRENT') {
-          if (cylDepIn) cylDepIn.value = '2200.00';
-          if (regDepIn) regDepIn.value = '250.00';
-        } else if (era === '2012_2019') {
-          if (cylDepIn) cylDepIn.value = '1400.00';
-          if (regDepIn) regDepIn.value = '150.00';
-        } else if (era === '2006_2011') {
-          if (cylDepIn) cylDepIn.value = '900.00';
-          if (regDepIn) regDepIn.value = '100.00';
-        } else if (era === 'PRE_2006') {
-          if (cylDepIn) cylDepIn.value = '500.00';
-          if (regDepIn) regDepIn.value = '50.00';
-        }
-        calcNet();
-      });
-
-      cylSel?.addEventListener('change', () => {
-        if (cylSel.value.includes('19 KG')) {
-          if (cylDepIn) cylDepIn.value = '3500.00';
-          if (regDepIn) regDepIn.value = '250.00';
-        } else if (cylSel.value.includes('5 KG Domestic')) {
-          if (cylDepIn) cylDepIn.value = '800.00';
-          if (regDepIn) regDepIn.value = '250.00';
-        }
-        calcNet();
-      });
-
-      custSel?.addEventListener('change', () => {
-        const val = custSel.value;
-        if (!val || !nameIn) return;
-        const opt = custSel.options[custSel.selectedIndex];
-        nameIn.value = opt.dataset.name || '';
-        if (mobIn) mobIn.value = opt.dataset.mob || '';
-        if (consIn) consIn.value = opt.dataset.cons || '';
-        if (typeSel && opt.dataset.type) typeSel.value = opt.dataset.type;
-      });
-
-      // Initial calculation
-      calcNet();
-    }, 150);
-
-    const data = await ui.formModal(html, 'TV Out Billing & Connection Surrender (Refund Voucher)', () => {
-      const name = document.getElementById('sr-cust-name').value.trim();
-      const mobile = document.getElementById('sr-cust-mobile').value.trim();
-      if (!name || !mobile) {
-        Swal.showValidationMessage('Customer Name and Mobile are required!');
-        return false;
-      }
-      const cQty = document.getElementById('sr-chk-cylinder')?.checked ? (parseInt(document.getElementById('sr-qty-cylinder')?.value) || 1) : 0;
-      const cylDepRate = parseFloat(document.getElementById('sr-cyl-deposit')?.value) || 0;
-      const cylTotal = cQty * cylDepRate;
-
-      const rQty = document.getElementById('sr-chk-regulator')?.checked ? (parseInt(document.getElementById('sr-qty-regulator')?.value) || 1) : 0;
-      const regDep = parseFloat(document.getElementById('sr-reg-deposit')?.value) || 0;
-      const regTotal = rQty * regDep;
-
-      const secAmt = parseFloat(document.getElementById('sr-sec-amount')?.value) || (cylTotal + regTotal);
-      const tvOut = parseFloat(document.getElementById('sr-tv-out-charge')?.value) || 0;
-      const admin = parseFloat(document.getElementById('sr-admin-charge')?.value) || 0;
-      const imprest = parseFloat(document.getElementById('sr-imprest-fund')?.value) || 0;
-      const totalDed = tvOut + admin + imprest;
-      const netAmt = parseFloat(document.getElementById('sr-net-refund')?.value) || Math.max(0, secAmt - totalDed);
-
-      if (secAmt <= 0) {
-        Swal.showValidationMessage('Security deposit amount must be greater than zero!');
-        return false;
-      }
-
-      const custSel = document.getElementById('sr-cust-select');
-      const custId = custSel.value ? parseInt(custSel.value) : (preselectedCustomer ? preselectedCustomer.CustomerID : null);
-
-      return {
-        CustomerID: custId,
-        CustomerName: name,
-        Mobile: mobile,
-        ConsumerNo: document.getElementById('sr-cust-consumerno')?.value.trim() || '',
-        CustomerType: document.getElementById('sr-cust-type')?.value || 'DOMESTIC',
-        CylinderType: document.getElementById('sr-cylinder-type')?.value || '14.2 KG Domestic',
-        OriginalSVEra: document.getElementById('sr-sv-era')?.value || 'CURRENT',
-        CylinderDepositAmount: cylTotal,
-        RegulatorDepositAmount: regTotal,
-        CylindersReturned: cQty,
-        RegulatorReturned: rQty,
-        PassbookReturned: document.getElementById('sr-chk-passbook')?.checked ? 1 : 0,
-        SecurityAmount: secAmt,
-        TvOutCharge: tvOut,
-        AdminCharge: admin,
-        ImprestFund: imprest,
-        DeductionAmount: totalDed,
-        RefundAmount: netAmt,
-        PaymentMode: document.getElementById('sr-pay-mode')?.value || 'CASH',
-        ReferenceNo: document.getElementById('sr-ref-no')?.value.trim() || '',
-        Reason: document.getElementById('sr-reason')?.value.trim() || 'TV Out / SV Connection Surrender & Caution Money Refund',
-        VoucherType: 'TV_OUT'
-      };
-    }, { maxWidth: '750px' });
-
-    if (data) {
-      const res = await api('saveTvOutBill', data, { loaderMessage: 'Generating TV Out bill & updating stock/cash...' });
-      if (res.ok && res.data) {
-        ui.success(`TV Out Bill ${res.data.RefundNumber} processed successfully! Net Cash Return: ${utils.formatCurrency(res.data.RefundAmount)}`);
-        printEngine.openPreview('security_refund', res.data, '80mm');
-        await this.loadCustomers();
-        this.loadRecentBills();
-      }
+  openSecurityRefundModal(preselectedCustomer = null) {
+    this.setMode('tv_out');
+    if (preselectedCustomer) {
+      const nameIn = document.getElementById('tv-cust-name');
+      const mobIn = document.getElementById('tv-cust-mobile');
+      const consIn = document.getElementById('tv-cust-consumerno');
+      const typeIn = document.getElementById('tv-cust-type');
+      const custSel = document.getElementById('tv-cust-select');
+      if (nameIn) nameIn.value = preselectedCustomer.Name || '';
+      if (mobIn) mobIn.value = preselectedCustomer.Mobile || '';
+      if (consIn) consIn.value = preselectedCustomer.ConsumerNo || '';
+      if (typeIn) typeIn.value = preselectedCustomer.ConnectionType || 'DOMESTIC';
+      if (custSel && preselectedCustomer.CustomerID) custSel.value = preselectedCustomer.CustomerID;
+      this.calcTvOut();
     }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   },
 
   /**

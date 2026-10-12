@@ -539,41 +539,50 @@ class BillingController {
                 $custName = trim($payload['CustomerName'] ?? '');
                 $mobile = trim($payload['Mobile'] ?? '');
                 $address = trim($payload['Address'] ?? '');
-                $packageItems = $payload['packageItems'] ?? [];
+                $custId = (int)($payload['CustomerID'] ?? 0);
+                $packageItems = $payload['packageItems'] ?? ($payload['items'] ?? []);
 
-                if (empty($custName) || empty($mobile)) {
-                    return ['ok' => false, 'error' => ['code' => 'VALIDATION', 'message' => 'Customer name and unique mobile are required for SV connection package.']];
-                }
-
-                // Check mobile unique
-                $chk = $db->prepare("SELECT CustomerID FROM customers WHERE Mobile = ? AND IsDeleted = 0");
-                $chk->execute([$mobile]);
-                if ($chk->fetch()) {
-                    return ['ok' => false, 'error' => ['code' => 'CONFLICT', 'message' => "Customer with mobile $mobile already exists!"]];
+                if (empty($custName) && $custId <= 0) {
+                    return ['ok' => false, 'error' => ['code' => 'VALIDATION', 'message' => 'Customer name or selection is required for SV connection package.']];
                 }
 
                 $db->beginTransaction();
                 try {
                     $now = date('Y-m-d H:i:s');
                     $datePrefix = date('Ymd');
+                    $newCustId = $custId;
 
-                    // 1. Create Customer
-                    $seqCust = (int)$db->query("SELECT COUNT(*) FROM customers")->fetchColumn() + 1;
-                    $custCode = sprintf("CUST-%s-%04d", $datePrefix, $seqCust);
+                    if ($newCustId <= 0) {
+                        // Check if customer already exists with mobile
+                        if (!empty($mobile)) {
+                            $chk = $db->prepare("SELECT CustomerID FROM customers WHERE Mobile = ? AND IsDeleted = 0");
+                            $chk->execute([$mobile]);
+                            $foundId = $chk->fetchColumn();
+                            if ($foundId) {
+                                $newCustId = (int)$foundId;
+                            }
+                        }
+                    }
 
-                    $insCust = $db->prepare("INSERT INTO customers (
-                        CustomerCode, Name, Mobile, AltMobile, ConsumerNo, LPGID, Address, Area, Village,
-                        ConnectionType, CylinderType, AadhaarLast4, Status, CreatedBy, CreatedAt, UpdatedAt
-                    ) VALUES (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                        'NEW_SV', '14.2 KG Domestic', ?, 'ACTIVE', ?, ?, ?
-                    )");
-                    $insCust->execute([
-                        $custCode, $custName, $mobile, $payload['AltMobile'] ?? '', $payload['ConsumerNo'] ?? '',
-                        $payload['LPGID'] ?? '', $address, $payload['Area'] ?? '', $payload['Village'] ?? '',
-                        $payload['AadhaarLast4'] ?? '', $user['userId'], $now, $now
-                    ]);
-                    $newCustId = (int)$db->lastInsertId();
+                    if ($newCustId <= 0) {
+                        // 1. Create Customer
+                        $seqCust = (int)$db->query("SELECT COUNT(*) FROM customers")->fetchColumn() + 1;
+                        $custCode = sprintf("CUST-%s-%04d", $datePrefix, $seqCust);
+
+                        $insCust = $db->prepare("INSERT INTO customers (
+                            CustomerCode, Name, Mobile, AltMobile, ConsumerNo, LPGID, Address, Area, Village,
+                            ConnectionType, CylinderType, AadhaarLast4, Status, CreatedBy, CreatedAt, UpdatedAt
+                        ) VALUES (
+                            ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                            'NEW_SV', '14.2 KG Domestic', ?, 'ACTIVE', ?, ?, ?
+                        )");
+                        $insCust->execute([
+                            $custCode, $custName, $mobile, $payload['AltMobile'] ?? '', $payload['ConsumerNo'] ?? '',
+                            $payload['LPGID'] ?? '', $address, $payload['Area'] ?? '', $payload['Village'] ?? '',
+                            $payload['AadhaarLast4'] ?? '', $user['userId'], $now, $now
+                        ]);
+                        $newCustId = (int)$db->lastInsertId();
+                    }
 
                     // 2. Prepare items for POS bill
                     $payload['CustomerID'] = $newCustId;

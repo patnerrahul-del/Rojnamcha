@@ -1340,4 +1340,42 @@ table.table-hover tbody tr {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
+/* POS Counter Billing - Unified Mode Switcher Tabs */
+.pos-mode-tab {
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  background: transparent;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  user-select: none;
+}
+.pos-mode-tab:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-main);
+}
+.pos-mode-tab.active {
+  background: var(--bg-surface, #fff);
+  color: var(--primary, #0074d9);
+  border-color: var(--border, #e2e8f0);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+.pos-mode-tab[data-mode="sale"].active {
+  color: #16a34a;
+  border-bottom: 2px solid #16a34a;
+}
+.pos-mode-tab[data-mode="sv_package"].active {
+  color: #0284c7;
+  border-bottom: 2px solid #0284c7;
+}
+.pos-mode-tab[data-mode="tv_out"].active {
+  color: #d97706;
+  border-bottom: 2px solid #d97706;
+}
+.tv-era-btn.active, .sv-preset-btn.active {
+  background: var(--primary, #0074d9);
+  color: #fff !important;
+  border-color: var(--primary, #0074d9) !important;
+}
+
+
 
