@@ -112,9 +112,9 @@ export const utils = {
   },
 
   /**
-   * Convert file to Base64 with MIME and size validation
+   * Convert file to Base64 with MIME and size validation and high-fidelity scaling
    */
-  async logoToBase64(file, maxSizeMB = 3) {
+  async logoToBase64(file, maxSizeMB = 5, maxDimension = 1000) {
     return new Promise((resolve, reject) => {
       if (!file) return reject(new Error('No file selected'));
 
@@ -129,14 +129,67 @@ export const utils = {
 
       const reader = new FileReader();
       reader.onload = () => {
-        const result = reader.result; // data:image/png;base64,....
-        const base64Data = result.split(',')[1];
-        resolve({
-          base64: base64Data,
-          dataUrl: result,
-          mimeType: file.type,
-          size: file.size
-        });
+        const result = reader.result;
+        // If SVG, return as is (keep vector scalability)
+        if (file.type === 'image/svg+xml') {
+          const base64Data = result.split(',')[1];
+          return resolve({
+            base64: base64Data,
+            dataUrl: result,
+            mimeType: file.type,
+            size: file.size
+          });
+        }
+
+        // For raster images, constrain max dimension if very large
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, width, height);
+
+            const outMime = (file.type === 'image/jpeg') ? 'image/jpeg' : 'image/png';
+            const dataUrl = canvas.toDataURL(outMime, 0.95);
+            const base64Data = dataUrl.split(',')[1];
+            resolve({
+              base64: base64Data,
+              dataUrl,
+              mimeType: outMime,
+              size: Math.round((base64Data.length * 3) / 4)
+            });
+          } else {
+            const base64Data = result.split(',')[1];
+            resolve({
+              base64: base64Data,
+              dataUrl: result,
+              mimeType: file.type,
+              size: file.size
+            });
+          }
+        };
+        img.onerror = () => {
+          const base64Data = result.split(',')[1];
+          resolve({
+            base64: base64Data,
+            dataUrl: result,
+            mimeType: file.type,
+            size: file.size
+          });
+        };
+        img.src = result;
       };
       reader.onerror = () => reject(new Error('Failed to read file contents.'));
       reader.readAsDataURL(file);

@@ -117,6 +117,12 @@ class Database {
             $sql
         );
 
+        // Large media/binary base64 storage columns -> LONGTEXT (avoids 64KB MySQL TEXT truncation)
+        $longTextCols = ['LogoBase64', 'Photo', 'FileData'];
+        foreach ($longTextCols as $col) {
+            $sql = preg_replace("/\b$col\s+TEXT\b/i", "`$col` LONGTEXT", $sql);
+        }
+
         // REAL -> DOUBLE
         $sql = preg_replace('/\bREAL\b/i', 'DOUBLE', $sql);
 
@@ -1091,6 +1097,13 @@ class Database {
                 $insHwk = $db->prepare("INSERT INTO employees (EmpCode, Name, Mobile, Role, JoiningDate, Salary, PerDeliveryRate, Status, CreatedAt, UpdatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?)");
                 $insHwk->execute([$hwk[0], $hwk[1], $hwk[2], $hwk[3], $hwk[4], $hwk[5], $hwk[6], $now, $now]);
             }
+        }
+
+        // 8. Ensure MySQL uses LONGTEXT for base64 storage columns (prevents 64KB truncation)
+        if ($isMysql) {
+            try { $db->exec("ALTER TABLE companies MODIFY LogoBase64 LONGTEXT"); } catch (Throwable $e) {}
+            try { $db->exec("ALTER TABLE employees MODIFY Photo LONGTEXT"); } catch (Throwable $e) {}
+            try { $db->exec("ALTER TABLE employee_documents MODIFY FileData LONGTEXT"); } catch (Throwable $e) {}
         }
     }
 }
