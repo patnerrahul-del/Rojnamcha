@@ -330,22 +330,28 @@ class BillingController {
                     $discountAmount = $calculatedDiscountPaise / 100;
                     $totalAmount = $totalBillPaise / 100;
 
+                    $notes = trim($payload['Notes'] ?? '');
+                    if (!empty($payload['HawkerName'])) {
+                        $hawkerTag = "Hawker: " . trim($payload['HawkerName']);
+                        $notes = !empty($notes) ? ($notes . " | " . $hawkerTag) : $hawkerTag;
+                    }
+
                     // Insert Bill
                     $insBill = $db->prepare("INSERT INTO bills (
                         BillNumber, BillDate, CustomerID, CustomerName, CustomerMobile, ConsumerNo, CustomerType,
                         Subtotal, TaxAmount, DiscountAmount, TotalAmount, TotalPaise, SettlementPaise,
-                        PaidCash, PaidUPI, PaidHPPay, PaidDues, PaidBank, Status, BillType,
+                        PaidCash, PaidUPI, PaidHPPay, PaidDues, PaidBank, Status, BillType, Notes,
                         CreatedBy, CreatedByName, CreatedAt, UpdatedAt
                     ) VALUES (
                         ?, ?, ?, ?, ?, ?, ?,
                         ?, ?, ?, ?, ?, ?,
-                        ?, ?, ?, ?, ?, 'FINAL', 'SALE',
+                        ?, ?, ?, ?, ?, 'FINAL', 'SALE', ?,
                         ?, ?, ?, ?
                     )");
                     $insBill->execute([
                         $billNumber, $billDate, $customerId, $customerName, $customerMobile, $consumerNo, $customerType,
                         $subtotal, $taxAmount, $discountAmount, $totalAmount, $totalBillPaise, $totalSettlementPaise,
-                        $paidCash, $paidUPI, $paidHPPay, $paidDues, $paidBank,
+                        $paidCash, $paidUPI, $paidHPPay, $paidDues, $paidBank, $notes,
                         $user['userId'], $user['fullName'], $now, $now
                     ]);
                     $billId = (int)$db->lastInsertId();

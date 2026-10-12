@@ -18,7 +18,7 @@ export const billingModule = {
 
   async init() {
     this.renderContainer();
-    await Promise.all([this.loadItems(), this.loadCustomers(), this.loadRecentBills()]);
+    await Promise.all([this.loadItems(), this.loadCustomers(), this.loadHawkers(), this.loadRecentBills()]);
     this.initCart();
   },
 
@@ -34,9 +34,6 @@ export const billingModule = {
             <i class="fa-solid fa-cash-register" style="color:var(--primary);"></i> POS Counter Billing
           </h2>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button id="pos-hawker-sale-btn" class="btn btn-info btn-sm" style="background:#0284c7; border-color:#0284c7; color:#fff;" title="Record Hawker Dispatch Sale & HP Pay Collection">
-              <i class="fa-solid fa-truck-ramp-box"></i> Hawker Dispatch Sale
-            </button>
             <button id="pos-quick-cust-btn" class="btn btn-outline btn-sm">
               <i class="fa-solid fa-user-plus"></i> Add Customer
             </button>
@@ -64,11 +61,17 @@ export const billingModule = {
           <!-- Customer & Header Details Card -->
           <div class="card" style="margin-bottom:16px;">
             <div style="display:flex; flex-direction:column; gap:12px;">
-              <div style="display:grid; grid-template-columns: 2fr 1fr; gap:12px;">
+              <div style="display:grid; grid-template-columns: 1.5fr 1.2fr 1fr; gap:12px;">
                 <div class="form-group" style="margin-bottom:0;">
                   <label class="form-label"><i class="fa-solid fa-user"></i> Customer Selection</label>
                   <select id="pos-customer-select" class="form-select">
                     <option value="">Counter Walk-in Customer</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label"><i class="fa-solid fa-truck-ramp-box"></i> Delivery Hawker / Staff</label>
+                  <select id="pos-hawker-select" class="form-select">
+                    <option value="">-- Direct Counter (No Hawker) --</option>
                   </select>
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
@@ -77,6 +80,8 @@ export const billingModule = {
                   <datalist id="pos-cust-types">
                     <option value="DOMESTIC">
                     <option value="COMMERCIAL">
+                    <option value="HAWKER DISPATCH">
+                    <option value="HOME DELIVERY">
                     <option value="INSTITUTIONAL">
                     <option value="NFR">
                     <option value="WALK-IN">
@@ -238,10 +243,20 @@ export const billingModule = {
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label">
+                  <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
                     <span><i class="fa-solid fa-gas-pump" style="color:#e94560;"></i> HP Pay</span>
+                    <a href="#" id="pos-calc-hppay-btn" style="font-size:11px; color:var(--primary); text-decoration:none;"><i class="fa-solid fa-calculator"></i> Calc by Count</a>
                   </label>
                   <input type="number" id="pos-pay-hppay" class="form-control num-font" value="0" min="0" step="any">
+                  <div id="pos-hppay-calc-box" style="display:none; margin-top:6px; padding:6px 10px; background:rgba(233,69,96,0.06); border-radius:6px; border:1px solid rgba(233,69,96,0.2); font-size:11.5px;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      <span>Count:</span>
+                      <input type="number" id="pos-hppay-count-input" class="form-control num-font" style="width:55px; height:26px; padding:2px 6px; font-size:12px;" min="0" value="0">
+                      <span>=</span>
+                      <span id="pos-hppay-calc-preview" style="font-weight:700; color:#e94560;">₹0.00</span>
+                      <button type="button" id="pos-hppay-apply-btn" class="btn btn-primary" style="padding:2px 8px; font-size:11px; height:26px; margin-left:auto;">Apply</button>
+                    </div>
+                  </div>
                 </div>
 
                 <div class="form-group">
@@ -746,8 +761,61 @@ export const billingModule = {
     // Quick Add Customer
     document.getElementById('pos-quick-cust-btn')?.addEventListener('click', () => this.openQuickCustomerModal());
 
-    // Hawker Dispatch Sale from POS
-    document.getElementById('pos-hawker-sale-btn')?.addEventListener('click', () => this.openHawkerDispatchModal());
+    // Delivery Hawker selection auto-updates Customer Type
+    document.getElementById('pos-hawker-select')?.addEventListener('change', (e) => {
+      const typeIn = document.getElementById('pos-customer-type');
+      if (e.target.value && typeIn && (typeIn.value === 'DOMESTIC' || !typeIn.value)) {
+        typeIn.value = 'HAWKER DISPATCH';
+      }
+    });
+
+    // HP Pay By-Count Calculator
+    const calcHpBtn = document.getElementById('pos-calc-hppay-btn');
+    const calcHpBox = document.getElementById('pos-hppay-calc-box');
+    const hpCountIn = document.getElementById('pos-hppay-count-input');
+    const hpPreview = document.getElementById('pos-hppay-calc-preview');
+    const hpApplyBtn = document.getElementById('pos-hppay-apply-btn');
+    const hpPayInput = document.getElementById('pos-pay-hppay');
+
+    const updateHpPreview = () => {
+      const count = parseInt(hpCountIn?.value) || 0;
+      let cylRate = 1042.00;
+      const saleItem = cart.find(it => it.Category === 'SALE' || (it.CylinderType && it.CylinderType.includes('14.2')));
+      if (saleItem && saleItem.Rate) {
+        cylRate = saleItem.Rate;
+      }
+      const amt = count * cylRate;
+      if (hpPreview) hpPreview.textContent = utils.formatCurrency(amt);
+      return amt;
+    };
+
+    if (calcHpBtn && calcHpBox) {
+      calcHpBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const isHidden = calcHpBox.style.display === 'none';
+        calcHpBox.style.display = isHidden ? 'block' : 'none';
+        if (isHidden) {
+          updateHpPreview();
+          if (hpCountIn) hpCountIn.focus();
+        }
+      });
+    }
+
+    if (hpCountIn) {
+      hpCountIn.addEventListener('input', updateHpPreview);
+    }
+
+    if (hpApplyBtn) {
+      hpApplyBtn.addEventListener('click', () => {
+        const amt = updateHpPreview();
+        if (hpPayInput) {
+          hpPayInput.value = amt.toFixed(2);
+          this.updateTotalsAndGuard();
+        }
+        if (calcHpBox) calcHpBox.style.display = 'none';
+        ui.info('HP Pay amount ' + utils.formatCurrency(amt) + ' applied.');
+      });
+    }
 
     // Customer selection auto-fills Customer Type (CustType)
     document.getElementById('pos-customer-select')?.addEventListener('change', (e) => {
@@ -794,7 +862,26 @@ export const billingModule = {
     }
   },
 
-  async loadCustomers() {
+    async loadHawkers() {
+    try {
+      const res = await api('listEmployees', { status: 'active' }, { loader: false });
+      if (res.ok && res.data) {
+        const select = document.getElementById('pos-hawker-select');
+        if (select) {
+          const opts = res.data.map(h => `
+            <option value="${h.EmpID}" data-name="${utils.escapeHtml(h.Name)}">
+              ${utils.escapeHtml(h.Name)} (${utils.escapeHtml(h.Role || 'Staff')})
+            </option>
+          `).join('');
+          select.innerHTML = '<option value="">-- Direct Counter (No Hawker) --</option>' + opts;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load hawkers:', e);
+    }
+  },
+
+async loadCustomers() {
     const res = await api('listCustomers', { status: 'active' }, { loader: false });
     if (res.ok && res.data) {
       availableCustomers = res.data;
@@ -1098,13 +1185,20 @@ export const billingModule = {
     }
 
     // Regular Bill flow
+    const hawkerSelect = document.getElementById('pos-hawker-select');
+    const hawkerId = hawkerSelect ? hawkerSelect.value : '';
+    const hawkerName = (hawkerSelect && hawkerSelect.selectedOptions[0] && hawkerSelect.value) ? (hawkerSelect.selectedOptions[0].dataset.name || '') : '';
+
     const payload = {
       BillDate: document.getElementById('pos-bill-date').value,
       CustomerID: custId,
-      CustomerName: custId ? selectedOption.dataset.name : 'Counter Walk-in',
+      CustomerName: custId ? selectedOption.dataset.name : (hawkerName ? `Counter (${hawkerName})` : 'Counter Walk-in'),
       CustomerMobile: custId ? selectedOption.dataset.mob : '',
       ConsumerNo: custId ? selectedOption.dataset.cons : '',
       CustomerType: document.getElementById('pos-customer-type')?.value.trim() || 'DOMESTIC',
+      HawkerID: hawkerId || null,
+      HawkerName: hawkerName || '',
+      Notes: hawkerName ? `Delivery Staff / Hawker: ${hawkerName}` : '',
       DiscountAmount: parseFloat(document.getElementById('pos-discount')?.value || 0),
       PaidCash: parseFloat(document.getElementById('pos-pay-cash')?.value || 0),
       PaidUPI: parseFloat(document.getElementById('pos-pay-upi')?.value || 0),
@@ -1134,6 +1228,9 @@ export const billingModule = {
         document.getElementById(id).value = '0';
       });
       custSelect.value = '';
+      if (document.getElementById('pos-hawker-select')) document.getElementById('pos-hawker-select').value = '';
+      if (document.getElementById('pos-hppay-calc-box')) document.getElementById('pos-hppay-calc-box').style.display = 'none';
+      if (document.getElementById('pos-hppay-count-input')) document.getElementById('pos-hppay-count-input').value = '0';
       this.loadRecentBills();
     }
   },
@@ -1568,326 +1665,5 @@ export const billingModule = {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
 
-  /**
-   * Hawker Dispatch Sale Settlement directly from POS Counter Billing
-   * Includes HP Pay Consumer Count & Auto Calculation (Rate * Consumer Count)
-   */
-  async openHawkerDispatchModal() {
-    const hawkersRes = await api('listEmployees', { status: 'active' }, { loader: false });
-    const hawkerEmployees = hawkersRes.ok && hawkersRes.data ? hawkersRes.data : [];
 
-    const hawkerOptions = hawkerEmployees.map(h => `
-      <option value="${h.EmpID}">${utils.escapeHtml(h.Name)} (${h.Role})</option>
-    `).join('');
-
-    const defaultRate = 1042.00;
-
-    const html = `
-      <div style="display:flex; flex-direction:column; gap:8px; text-align:left;">
-        <!-- Section 1: Hawker Assignment -->
-        <div class="modal-section-card">
-          <div class="modal-section-header">
-            <i class="fa-solid fa-truck-ramp-box"></i>
-            <span>Hawker Dispatch Delivery Settlement</span>
-          </div>
-          <div class="form-grid">
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-user-gear"></i> Delivery Hawker / Driver *</label>
-              <select id="hpos-hawker" class="form-select" required>
-                <option value="">-- Choose Assigned Hawker --</option>
-                ${hawkerOptions}
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-calendar-day"></i> Dispatch Date *</label>
-              <input type="date" id="hpos-date" class="form-control" value="${document.getElementById('pos-bill-date')?.value || utils.today()}" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-fire"></i> Cylinder Variant</label>
-              <select id="hpos-cyl-type" class="form-select">
-                <option value="14.2 KG Domestic" selected>14.2 KG Domestic</option>
-                <option value="19 KG Commercial">19 KG Commercial</option>
-                <option value="5 KG Commercial">5 KG Commercial</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-tag"></i> Cylinder Rate (₹) *</label>
-              <input type="number" id="hpos-rate" class="form-control num-font" value="${defaultRate}" min="1" step="any" required>
-            </div>
-          </div>
-        </div>
-
-        <!-- Section 2: Cylinder Movement -->
-        <div class="modal-section-card">
-          <div class="modal-section-header">
-            <i class="fa-solid fa-gas-pump"></i>
-            <span>Cylinder Quantities (Loaded vs Returned)</span>
-          </div>
-          <div class="form-grid">
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-arrow-up-from-bracket text-primary"></i> Outward Loaded Full *</label>
-              <input type="number" id="hpos-loaded" class="form-control num-font" value="40" min="1" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-rotate-left text-danger"></i> Returned Full Unsold</label>
-              <input type="number" id="hpos-ret-full" class="form-control num-font" value="0" min="0">
-            </div>
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-arrow-down-to-bracket text-warning"></i> Returned Sound Empty</label>
-              <input type="number" id="hpos-ret-empty" class="form-control num-font" value="40" min="0">
-            </div>
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-check-double text-success"></i> Net Sold Cylinders</label>
-              <input type="number" id="hpos-net-sold" class="form-control num-font" value="40" readonly style="font-weight:800; background:#f0fdf4; color:#15803d;">
-            </div>
-          </div>
-        </div>
-
-        <!-- Section 3: Financial Settlement & HP Pay Calculation -->
-        <div class="modal-section-card">
-          <div class="modal-section-header">
-            <i class="fa-solid fa-wallet"></i>
-            <span>Trip Collections (Cash, UPI & HP Pay Formula)</span>
-          </div>
-          <div class="form-grid">
-            <div class="form-group" style="grid-column:1 / -1; background:#e0f2fe; padding:8px 12px; border-radius:4px; border:1px solid #bae6fd;">
-              <span style="font-size:12px; font-weight:700; color:#0369a1;">Expected Collection: <strong id="hpos-expected-txt" class="num-font" style="font-size:14px;">₹41,680.00</strong></span>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-money-bill"></i> Cash Deposited (₹)</label>
-              <input type="number" id="hpos-cash" class="form-control num-font" value="0" min="0" step="any">
-            </div>
-
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-qrcode"></i> UPI Deposited (₹)</label>
-              <input type="number" id="hpos-upi" class="form-control num-font" value="0" min="0" step="any">
-            </div>
-
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-users text-primary"></i> HP Pay Consumer Count (Qty) *</label>
-              <input type="number" id="hpos-hppay-count" class="form-control num-font" value="0" min="0" placeholder="Number of Consumers">
-              <small style="color:var(--text-muted); font-size:11px;">(Delivery done to HP Pay consumers)</small>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-mobile-screen-button text-primary"></i> HP Pay Amount [Rate × Count] (₹)</label>
-              <input type="number" id="hpos-hppay-amount" class="form-control num-font" value="0" min="0" step="any" style="font-weight:700;">
-              <small style="color:var(--text-muted); font-size:11px;">Auto-calculated: Rate × Count</small>
-            </div>
-
-            <!-- Dynamic 6-Digit HP Pay Consumer Numbers Grid -->
-            <div id="hpos-hppay-consumers-box" style="grid-column:1 / -1; display:none; background:#f0f9ff; border:1px solid #bae6fd; border-radius:6px; padding:12px 14px; margin-top:2px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                <label style="font-size:12px; font-weight:700; color:#0369a1; margin:0;">
-                  <i class="fa-solid fa-mobile-screen"></i> HP Pay 6-Digit Consumer Numbers (HPCL Official Format):
-                </label>
-                <span id="hpos-hppay-badge" class="badge" style="background:#0284c7; color:#fff; font-size:11px;">0 / 0 Entered</span>
-              </div>
-              <div id="hpos-hppay-inputs-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:8px;"></div>
-              <div style="font-size:11px; color:#0284c7; margin-top:6px;">
-                <i class="fa-solid fa-circle-info"></i> Enter 6-digit HPCL consumer number for each delivery (e.g. <code>204512</code>). These are recorded in the Daily Rojnamcha.
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-hand-holding-dollar"></i> Customer Dues Allowed (₹)</label>
-              <input type="number" id="hpos-dues" class="form-control num-font" value="0" min="0" step="any">
-            </div>
-
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-scale-balanced"></i> Settlement Variance</label>
-              <input type="text" id="hpos-variance" class="form-control" readonly value="Balanced" style="font-weight:700;">
-            </div>
-
-            <div class="form-group" style="grid-column:1 / -1;">
-              <label class="form-label"><i class="fa-solid fa-location-dot"></i> Route / Area & Remarks</label>
-              <input type="text" id="hpos-remarks" class="form-control" placeholder="Village / Area / Cart Number">
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-
-    setTimeout(() => {
-      const rateIn = document.getElementById('hpos-rate');
-      const loadedIn = document.getElementById('hpos-loaded');
-      const retFullIn = document.getElementById('hpos-ret-full');
-      const netSoldIn = document.getElementById('hpos-net-sold');
-      const expTxt = document.getElementById('hpos-expected-txt');
-      const cashIn = document.getElementById('hpos-cash');
-      const upiIn = document.getElementById('hpos-upi');
-      const hpCountIn = document.getElementById('hpos-hppay-count');
-      const hpAmtIn = document.getElementById('hpos-hppay-amount');
-      const duesIn = document.getElementById('hpos-dues');
-      const varIn = document.getElementById('hpos-variance');
-      const cylSel = document.getElementById('hpos-cyl-type');
-
-      const recalc = () => {
-        const rate = parseFloat(rateIn?.value) || 0;
-        const loaded = parseInt(loadedIn?.value) || 0;
-        const retFull = parseInt(retFullIn?.value) || 0;
-        const netSold = Math.max(0, loaded - retFull);
-        if (netSoldIn) netSoldIn.value = netSold;
-
-        const expected = netSold * rate;
-        if (expTxt) expTxt.textContent = utils.formatCurrency(expected);
-
-        const hpCount = parseInt(hpCountIn?.value) || 0;
-        const hpCalc = Math.round(hpCount * rate * 100) / 100;
-        if (hpAmtIn && document.activeElement !== hpAmtIn) {
-          hpAmtIn.value = hpCalc;
-        }
-
-        const cash = parseFloat(cashIn?.value) || 0;
-        const upi = parseFloat(upiIn?.value) || 0;
-        const hp = parseFloat(hpAmtIn?.value) || 0;
-        const dues = parseFloat(duesIn?.value) || 0;
-
-        const totalDep = cash + upi + hp + dues;
-        const diff = totalDep - expected;
-
-        if (varIn) {
-          if (Math.abs(diff) < 0.01) {
-            varIn.value = 'Balanced ✓';
-            varIn.style.color = '#15803d';
-            varIn.style.background = '#f0fdf4';
-          } else if (diff < 0) {
-            varIn.value = `Shortage: -${utils.formatCurrency(Math.abs(diff))}`;
-            varIn.style.color = '#b91c1c';
-            varIn.style.background = '#fef2f2';
-          } else {
-            varIn.value = `Excess: +${utils.formatCurrency(diff)}`;
-            varIn.style.color = '#0284c7';
-            varIn.style.background = '#f0f9ff';
-          }
-        }
-      };
-
-      const renderHpConsumerInputs = () => {
-        const count = parseInt(hpCountIn?.value) || 0;
-        const box = document.getElementById('hpos-hppay-consumers-box');
-        const grid = document.getElementById('hpos-hppay-inputs-grid');
-        const badge = document.getElementById('hpos-hppay-badge');
-        if (!box || !grid) return;
-
-        if (count <= 0) {
-          box.style.display = 'none';
-          grid.innerHTML = '';
-          return;
-        }
-
-        box.style.display = 'block';
-
-        // Keep existing values if any
-        const existingVals = Array.from(grid.querySelectorAll('.hpos-cno-input')).map(i => i.value.trim());
-
-        let gridHtml = '';
-        for (let i = 0; i < count; i++) {
-          const val = existingVals[i] || '';
-          gridHtml += `
-            <div style="background:#fff; border:1px solid #bae6fd; border-radius:4px; padding:6px 8px;">
-              <label style="font-size:10.5px; font-weight:700; color:#0369a1; display:block; margin-bottom:2px;">Consumer #${i + 1} (6-Digit):</label>
-              <input type="text" class="form-control form-control-sm hpos-cno-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" placeholder="e.g. 201452" value="${val}" style="font-family:monospace; font-weight:700; text-align:center; height:28px; font-size:12.5px; letter-spacing:1px;">
-            </div>
-          `;
-        }
-        grid.innerHTML = gridHtml;
-
-        const updateBadge = () => {
-          const filled = Array.from(grid.querySelectorAll('.hpos-cno-input')).filter(i => i.value.trim().length === 6).length;
-          if (badge) {
-            badge.textContent = `${filled} / ${count} Verified (6-Dig)`;
-            badge.style.background = (filled === count) ? '#16a34a' : '#0284c7';
-          }
-        };
-
-        grid.querySelectorAll('.hpos-cno-input').forEach(inp => {
-          inp.addEventListener('input', (e) => {
-            e.target.value = e.target.value.replace(/[^0-9]/g, '');
-            updateBadge();
-          });
-        });
-        updateBadge();
-      };
-
-      [rateIn, loadedIn, retFullIn, cashIn, upiIn, duesIn].forEach(el => el?.addEventListener('input', recalc));
-
-      hpCountIn?.addEventListener('input', () => {
-        const rate = parseFloat(rateIn?.value) || 0;
-        const hpCount = parseInt(hpCountIn?.value) || 0;
-        if (hpAmtIn) hpAmtIn.value = (hpCount * rate).toFixed(2);
-        renderHpConsumerInputs();
-        recalc();
-      });
-
-      hpAmtIn?.addEventListener('input', recalc);
-
-      cylSel?.addEventListener('change', () => {
-        if (cylSel.value.includes('19 KG')) {
-          if (rateIn) rateIn.value = '1850.00';
-        } else if (cylSel.value.includes('5 KG')) {
-          if (rateIn) rateIn.value = '425.00';
-        } else {
-          if (rateIn) rateIn.value = '1042.00';
-        }
-        recalc();
-      });
-
-      renderHpConsumerInputs();
-      recalc();
-    }, 150);
-
-    const data = await ui.formModal(html, 'Record Hawker Dispatch Sale (POS Counter)', () => {
-      const empId = parseInt(document.getElementById('hpos-hawker').value);
-      const loaded = parseInt(document.getElementById('hpos-loaded').value);
-      if (!empId) {
-        Swal.showValidationMessage('Select a delivery hawker!');
-        return false;
-      }
-      if (!loaded || loaded <= 0) {
-        Swal.showValidationMessage('Loaded cylinders quantity must be greater than zero!');
-        return false;
-      }
-
-      const rate = parseFloat(document.getElementById('hpos-rate').value) || defaultRate;
-      const hpCount = parseInt(document.getElementById('hpos-hppay-count').value) || 0;
-      const hpAmt = parseFloat(document.getElementById('hpos-hppay-amount').value) || (hpCount * rate);
-
-      const consumerInputs = Array.from(document.querySelectorAll('.hpos-cno-input')).map(i => i.value.trim());
-      if (hpCount > 0) {
-        const valid6Digits = consumerInputs.filter(c => c.length === 6 && /^\d{6}$/.test(c));
-        if (valid6Digits.length < hpCount) {
-          Swal.showValidationMessage(`Please enter all ${hpCount} valid 6-digit HPCL consumer numbers (${valid6Digits.length}/${hpCount} entered)!`);
-          return false;
-        }
-      }
-
-      return {
-        EmpID: empId,
-        Date: document.getElementById('hpos-date').value,
-        CylinderType: document.getElementById('hpos-cyl-type').value,
-        Rate: rate,
-        LoadedQuantity: loaded,
-        ReturnedEmpty: parseInt(document.getElementById('hpos-ret-empty').value) || 0,
-        ReturnedFull: parseInt(document.getElementById('hpos-ret-full').value) || 0,
-        CashDeposited: parseFloat(document.getElementById('hpos-cash').value) || 0,
-        UPIDeposited: parseFloat(document.getElementById('hpos-upi').value) || 0,
-        HPPayConsumerCount: hpCount,
-        HPPayRate: rate,
-        HPPayDeposited: hpAmt,
-        HPPayConsumerDetails: consumerInputs.join(', '),
-        DuesAllowed: parseFloat(document.getElementById('hpos-dues').value) || 0,
-        Remarks: document.getElementById('hpos-remarks').value.trim()
-      };
-    }, { maxWidth: '780px' });
-
-    if (data) {
-      const res = await api('saveDispatch', data, { loaderMessage: 'Recording hawker dispatch sale...' });
-      if (res.ok && res.data) {
-        ui.success(`Hawker dispatch saved successfully! HP Pay Count: ${data.HPPayConsumerCount} (${utils.formatCurrency(data.HPPayDeposited)})`);
-        this.loadRecentBills();
-      }
-    }
-  }
 };
