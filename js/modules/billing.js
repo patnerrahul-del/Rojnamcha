@@ -55,7 +55,7 @@ export const billingModule = {
       </div>
 
       <!-- VIEW 1: REGULAR SALE & NEW SV PACKAGE BILLING VIEW -->
-      <div id="pos-main-sale-view" style="display:grid; grid-template-columns: 1fr 380px; gap:20px;" class="pos-layout-grid">
+      <div id="pos-main-sale-view" class="pos-layout-grid">
         <!-- Left: Customer, Presets, Product Selector & Cart -->
         <div>
           <!-- Customer & Header Details Card -->
@@ -298,7 +298,7 @@ export const billingModule = {
       </div>
 
       <!-- VIEW 2: TV OUT (TERMINATION & CAUTION MONEY REFUND) INLINE BILLING VIEW -->
-      <div id="pos-main-tvout-view" style="display:none; grid-template-columns: 1fr 380px; gap:20px;" class="pos-layout-grid">
+      <div id="pos-main-tvout-view" class="pos-layout-grid" style="display:none;">
         <!-- Left: Consumer Details, Equipment Returned, Security Deposit, Deductions -->
         <div style="display:flex; flex-direction:column; gap:16px;">
           <!-- Card 1: Consumer & Surrender Details -->

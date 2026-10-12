@@ -436,9 +436,10 @@ body {
 }
 
 .view-section {
-  max-width: 1480px;
-  margin: 0 auto;
   width: 100%;
+  max-width: 100%;
+  margin: 0;
+  box-sizing: border-box;
 }
 
 /* ==========================================================================
@@ -1140,8 +1141,9 @@ table.table-hover tbody tr {
 /* POS Counter Billing Layout Grid */
 .pos-layout-grid {
   display: grid;
-  grid-template-columns: 1fr 380px;
+  grid-template-columns: 1fr 400px;
   gap: 20px;
+  width: 100%;
 }
 
 @media (max-width: 1024px) {
