@@ -192,7 +192,14 @@ class DashboardController {
                 ];
 
             case 'getSystemHealth':
-                $dbSize = file_exists(DB_SQLITE_PATH) ? filesize(DB_SQLITE_PATH) : 0;
+                $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
+                if ($driver === 'mysql') {
+                    try {
+                        $dbSize = (float)$db->query("SELECT SUM(data_length + index_length) FROM information_schema.TABLES WHERE table_schema = DATABASE()")->fetchColumn();
+                    } catch (Throwable $e) { $dbSize = 0; }
+                } else {
+                    $dbSize = (defined('DB_SQLITE_PATH') && file_exists(DB_SQLITE_PATH)) ? filesize(DB_SQLITE_PATH) : 0;
+                }
                 $usersCount = $db->query("SELECT COUNT(*) FROM users WHERE IsDeleted = 0")->fetchColumn();
                 $custCount = $db->query("SELECT COUNT(*) FROM customers WHERE IsDeleted = 0")->fetchColumn();
                 $billsCount = $db->query("SELECT COUNT(*) FROM bills WHERE IsDeleted = 0")->fetchColumn();

@@ -28,23 +28,43 @@ class ArchiveController {
                 }
 
                 $timestamp = date('Y-m-d_His');
-                $filename = "Shiv_Shakti_ERP_Backup_{$timestamp}.sqlite";
-                $targetPath = $backupDir . DIRECTORY_SEPARATOR . $filename;
+                $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
 
-                if (DB_DRIVER === 'sqlite' && file_exists(DB_SQLITE_PATH)) {
+                if ($driver === 'sqlite' && defined('DB_SQLITE_PATH') && file_exists(DB_SQLITE_PATH)) {
+                    $filename = "Shiv_Shakti_ERP_Backup_{$timestamp}.sqlite";
+                    $targetPath = $backupDir . DIRECTORY_SEPARATOR . $filename;
                     if (!copy(DB_SQLITE_PATH, $targetPath)) {
                         return ['ok' => false, 'error' => ['code' => 'SERVER', 'message' => 'Failed to create physical database backup file.']];
                     }
                     $fileSize = filesize($targetPath);
+                    $fileType = 'BACKUP_SQLITE';
                 } else {
-                    $targetPath = 'mysql_backup_simulated';
-                    $fileSize = 102400;
+                    $filename = "Shiv_Shakti_ERP_Backup_{$timestamp}.json";
+                    $targetPath = $backupDir . DIRECTORY_SEPARATOR . $filename;
+                    $exportTables = [];
+                    $tableList = [
+                        'companies', 'users', 'items', 'customers', 'customer_dues',
+                        'employees', 'employee_documents', 'attendance', 'leaves',
+                        'salary_slips', 'bills', 'bill_items', 'bill_payments',
+                        'cashbook', 'cylinder_stock', 'hawker_dispatch', 'due_payments',
+                        'security_refunds', 'day_closings', 'vendors', 'purchases',
+                        'purchase_items', 'settings'
+                    ];
+                    foreach ($tableList as $tbl) {
+                        try {
+                            $stmt = $db->query("SELECT * FROM `{$tbl}`");
+                            $exportTables[$tbl] = $stmt ? $stmt->fetchAll() : [];
+                        } catch (Exception $e) {}
+                    }
+                    file_put_contents($targetPath, json_encode(['tables' => $exportTables], JSON_UNESCAPED_UNICODE));
+                    $fileSize = file_exists($targetPath) ? filesize($targetPath) : 0;
+                    $fileType = 'BACKUP_JSON';
                 }
 
                 $now = date('Y-m-d H:i:s');
                 $ins = $db->prepare("INSERT INTO archives (FileName, FileType, Date, FilePath, FileSize, CreatedBy, CreatedAt)
-                    VALUES (?, 'BACKUP_SQLITE', ?, ?, ?, ?, ?)");
-                $ins->execute([$filename, date('Y-m-d'), $targetPath, $fileSize, $user['userId'], $now]);
+                    VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $ins->execute([$filename, $fileType, date('Y-m-d'), $targetPath, $fileSize, $user['userId'], $now]);
 
                 Audit::log($user['userId'], $user['username'], 'DATABASE_BACKUP', 'archive', (string)$db->lastInsertId(), null, ['file' => $filename], "Manual database backup created");
 
@@ -161,15 +181,19 @@ class ArchiveController {
                             'customers', 'vendors', 'employees', 'item_rates', 'items', 'rate_history',
                             'settings', 'roles', 'permissions', 'sessions'
                         ];
+                        $existingTables = array_map('strtolower', self::getExistingTables($db));
                         foreach ($deleteOrder as $dtbl) {
                             if (isset($tables[$dtbl])) {
-                                $chk = $db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='{$dtbl}'")->fetchColumn();
-                                if ($chk) {
+                                if (in_array(strtolower($dtbl), $existingTables)) {
                                     $db->exec("DELETE FROM `{$dtbl}`");
                                 }
                             }
                         }
                     }
+
+                    $existingTables = array_map('strtolower', self::getExistingTables($db));
+                    $isMysql = ($db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql');
+                    $insertIgnore = $isMysql ? 'INSERT IGNORE' : 'INSERT OR IGNORE';
 
                     foreach ($tables as $tbl => $rows) {
                         if (!is_array($rows) || empty($rows)) continue;
@@ -187,8 +211,7 @@ class ArchiveController {
 
                         // If table was not deleted earlier (e.g. merge mode or table not in delete list)
                         if ($mode === 'replace' && !in_array($tbl, $deleteOrder ?? [])) {
-                            $chk = $db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='{$tbl}'")->fetchColumn();
-                            if ($chk) {
+                            if (in_array(strtolower($tbl), $existingTables)) {
                                 $db->exec("DELETE FROM `{$tbl}`");
                             }
                         }
@@ -202,7 +225,7 @@ class ArchiveController {
                             $placeholders = implode(', ', array_fill(0, count($cols), '?'));
 
                             $sql = ($mode === 'merge')
-                                ? "INSERT OR IGNORE INTO `{$tbl}` ({$colList}) VALUES ({$placeholders})"
+                                ? "{$insertIgnore} INTO `{$tbl}` ({$colList}) VALUES ({$placeholders})"
                                 : "INSERT INTO `{$tbl}` ({$colList}) VALUES ({$placeholders})";
 
                             $ins = $db->prepare($sql);
@@ -312,15 +335,15 @@ class ArchiveController {
                             'customer_interactions', 'followups', 'notifications'
                         ];
 
+                        $existingTables = array_map('strtolower', self::getExistingTables($db));
                         foreach ($tablesToClear as $tbl) {
-                            $chk = $db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='{$tbl}'")->fetchColumn();
-                            if ($chk) {
+                            if (in_array(strtolower($tbl), $existingTables)) {
                                 $db->exec("DELETE FROM `{$tbl}`");
                             }
                         }
 
                         // Reset customer current dues balance to 0
-                        $db->exec("UPDATE customers SET CurrentDues = 0");
+                        $db->exec("UPDATE customers SET CurrentDues = 0, CurrentDuesPaise = 0");
 
                         $db->commit();
                         self::enableForeignKeys($db);
@@ -358,9 +381,9 @@ class ArchiveController {
                             'customers', 'vendors', 'employees', 'item_rates', 'rate_history'
                         ];
 
+                        $existingTables = array_map('strtolower', self::getExistingTables($db));
                         foreach ($allTables as $tbl) {
-                            $chk = $db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='{$tbl}'")->fetchColumn();
-                            if ($chk) {
+                            if (in_array(strtolower($tbl), $existingTables)) {
                                 $db->exec("DELETE FROM `{$tbl}`");
                             }
                         }
@@ -402,10 +425,40 @@ class ArchiveController {
     }
 
     /**
+     * Driver agnostic list of all existing table names
+     */
+    public static function getExistingTables(PDO $db): array {
+        $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
+        if ($driver === 'mysql') {
+            $stmt = $db->query("SHOW TABLES");
+            return $stmt ? ($stmt->fetchAll(PDO::FETCH_COLUMN) ?: []) : [];
+        } else {
+            $stmt = $db->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
+            return $stmt ? ($stmt->fetchAll(PDO::FETCH_COLUMN) ?: []) : [];
+        }
+    }
+
+    /**
+     * Driver agnostic table existence check
+     */
+    public static function tableExists(PDO $db, string $tbl): bool {
+        $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
+        if ($driver === 'mysql') {
+            $stmt = $db->query("SHOW TABLES LIKE " . $db->quote($tbl));
+            return (bool)($stmt && $stmt->fetchColumn());
+        } else {
+            $stmt = $db->prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?");
+            $stmt->execute([$tbl]);
+            return (bool)$stmt->fetchColumn();
+        }
+    }
+
+    /**
      * Helper: Disable Foreign Keys for Batch Deletion / Restore (Driver agnostic)
      */
     private static function disableForeignKeys(PDO $db): void {
-        if (DB_DRIVER === 'sqlite') {
+        $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
+        if ($driver === 'sqlite') {
             $db->exec('PRAGMA foreign_keys = OFF');
         } else {
             $db->exec('SET FOREIGN_KEY_CHECKS = 0');
@@ -416,7 +469,8 @@ class ArchiveController {
      * Helper: Enable Foreign Keys (Driver agnostic)
      */
     private static function enableForeignKeys(PDO $db): void {
-        if (DB_DRIVER === 'sqlite') {
+        $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
+        if ($driver === 'sqlite') {
             $db->exec('PRAGMA foreign_keys = ON');
         } else {
             $db->exec('SET FOREIGN_KEY_CHECKS = 1');
@@ -435,18 +489,32 @@ class ArchiveController {
             }
 
             $timestamp = date('Y-m-d_His');
-            $filename = "Shiv_Shakti_{$tag}_{$timestamp}.sqlite";
-            $targetPath = $backupDir . DIRECTORY_SEPARATOR . $filename;
+            $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
 
-            if (DB_DRIVER === 'sqlite' && file_exists(DB_SQLITE_PATH)) {
+            if ($driver === 'sqlite' && defined('DB_SQLITE_PATH') && file_exists(DB_SQLITE_PATH)) {
+                $filename = "Shiv_Shakti_{$tag}_{$timestamp}.sqlite";
+                $targetPath = $backupDir . DIRECTORY_SEPARATOR . $filename;
                 copy(DB_SQLITE_PATH, $targetPath);
                 $fileSize = filesize($targetPath);
-
-                $now = date('Y-m-d H:i:s');
-                $ins = $db->prepare("INSERT INTO archives (FileName, FileType, Date, FilePath, FileSize, CreatedBy, CreatedAt)
-                    VALUES (?, 'SAFEGUARD_SNAPSHOT', ?, ?, ?, ?, ?)");
-                $ins->execute([$filename, date('Y-m-d'), $targetPath, $fileSize, $user['userId'], $now]);
+            } else {
+                $filename = "Shiv_Shakti_{$tag}_{$timestamp}.json";
+                $targetPath = $backupDir . DIRECTORY_SEPARATOR . $filename;
+                $exportTables = [];
+                $tableList = ['companies', 'users', 'items', 'customers', 'bills', 'cashbook', 'cylinder_stock'];
+                foreach ($tableList as $t) {
+                    try {
+                        $stmt = $db->query("SELECT * FROM `{$t}`");
+                        $exportTables[$t] = $stmt ? $stmt->fetchAll() : [];
+                    } catch (Exception $e) {}
+                }
+                file_put_contents($targetPath, json_encode($exportTables, JSON_UNESCAPED_UNICODE));
+                $fileSize = file_exists($targetPath) ? filesize($targetPath) : 0;
             }
+
+            $now = date('Y-m-d H:i:s');
+            $ins = $db->prepare("INSERT INTO archives (FileName, FileType, Date, FilePath, FileSize, CreatedBy, CreatedAt)
+                VALUES (?, 'SAFEGUARD_SNAPSHOT', ?, ?, ?, ?, ?)");
+            $ins->execute([$filename, date('Y-m-d'), $targetPath, $fileSize, $user['userId'], $now]);
         } catch (Exception $e) {
             error_log("Safeguard backup error: " . $e->getMessage());
         }

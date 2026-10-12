@@ -3,6 +3,7 @@ data/*.sqlite
 data/*.db
 data/db_config.json
 data/setup.lock
+data/backups/
 
 # Logs
 *.log
