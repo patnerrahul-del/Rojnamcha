@@ -73,9 +73,29 @@ export const router = {
         if (route) this.navigate(route);
       });
     });
+
+    // Listen to browser back/forward or hash changes
+    window.addEventListener('hashchange', () => {
+      const hashRoute = this.getRouteFromUrl();
+      if (hashRoute && hashRoute !== currentRoute) {
+        this.navigate(hashRoute, false);
+      }
+    });
   },
 
-  navigate(route) {
+  getRouteFromUrl() {
+    const raw = (window.location.hash || '').replace(/^#\/?/, '').trim();
+    if (raw && moduleRegistry[raw]) {
+      return raw;
+    }
+    const saved = localStorage.getItem('erp_last_route');
+    if (saved && moduleRegistry[saved]) {
+      return saved;
+    }
+    return 'dashboard';
+  },
+
+  navigate(route, updateHash = true) {
     if (!auth.isAuthenticated()) return;
 
     if (!moduleRegistry[route]) {
@@ -90,6 +110,16 @@ export const router = {
     }
 
     currentRoute = route;
+
+    // Update URL hash & persist to localStorage so page refresh stays on this view
+    if (updateHash) {
+      if (window.location.hash !== `#/${route}`) {
+        window.location.hash = `#/${route}`;
+      }
+    }
+    try {
+      localStorage.setItem('erp_last_route', route);
+    } catch (e) {}
 
     // Toggle view sections
     document.querySelectorAll('.view-section').forEach(sec => {

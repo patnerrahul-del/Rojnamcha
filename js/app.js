@@ -259,7 +259,8 @@ function showMainApp() {
 
   router.init();
   searchModule.init();
-  router.navigate('dashboard');
+  const initialRoute = router.getRouteFromUrl();
+  router.navigate(initialRoute);
 }
 
 function bindGlobalEvents() {
