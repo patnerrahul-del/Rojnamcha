@@ -8,6 +8,25 @@ require_once __DIR__ . '/../audit.php';
 require_once __DIR__ . '/../auth.php';
 
 class StockController {
+    /**
+     * Get baseline opening stock for a cylinder variant.
+     * Starts strictly from 0 unless specified in Item Master (OpeningStock / OpeningEmptyStock)
+     */
+    public static function getBaselineOpening(PDO $db, string $cylType): array {
+        $stmt = $db->prepare("SELECT OpeningStock, OpeningEmptyStock FROM item_rates 
+            WHERE CylinderType = ? AND IsDeleted = 0 
+            ORDER BY ItemID ASC LIMIT 1");
+        $stmt->execute([$cylType]);
+        $row = $stmt->fetch();
+        if ($row) {
+            return [
+                'full' => max(0, (int)($row['OpeningStock'] ?? 0)),
+                'empty' => max(0, (int)($row['OpeningEmptyStock'] ?? 0))
+            ];
+        }
+        return ['full' => 0, 'empty' => 0];
+    }
+
     public static function handle(string $action, array $payload, ?array $user): array {
         if (!$user || !Auth::checkPermission($user, 'stock', 'read')) {
             return ['ok' => false, 'error' => ['code' => 'FORBIDDEN', 'message' => 'Permission denied.']];
@@ -39,16 +58,9 @@ class StockController {
                         $prevStmt->execute([$prevDate, $type]);
                         $prev = $prevStmt->fetch();
 
-                        $defaultOpenings = [
-                            '14.2 KG Domestic' => ['full' => 683, 'empty' => 306],
-                            '19 KG Commercial' => ['full' => 143, 'empty' => 50],
-                            '5 KG Commercial' => ['full' => 142, 'empty' => 280],
-                            '5 KG Domestic' => ['full' => 63, 'empty' => 191],
-                            '2 KG Commercial' => ['full' => 119, 'empty' => 55]
-                        ];
-
-                        $opFull = $prev ? (int)$prev['ClosingFull'] : ($defaultOpenings[$type]['full'] ?? 0);
-                        $opEmpty = $prev ? (int)$prev['ClosingEmpty'] : ($defaultOpenings[$type]['empty'] ?? 0);
+                        $baseline = self::getBaselineOpening($db, $type);
+                        $opFull = $prev ? (int)$prev['ClosingFull'] : $baseline['full'];
+                        $opEmpty = $prev ? (int)$prev['ClosingEmpty'] : $baseline['empty'];
 
                         // Calculate today's POS sales for this cylinder type
                         $posStmt = $db->prepare("SELECT COALESCE(SUM(bi.Quantity), 0) FROM bill_items bi 
@@ -231,18 +243,9 @@ class StockController {
                         $prevDate = date('Y-m-d', strtotime($date . ' -1 day'));
                         $prevStmt = $db->prepare("SELECT ClosingFull, ClosingEmpty FROM cylinder_stock WHERE Date = ? AND CylinderType = ?");
                         $prevStmt->execute([$prevDate, $cylType]);
-                        $prev = $prevStmt->fetch();
-
-                        $defaultOpenings = [
-                            '14.2 KG Domestic' => ['full' => 683, 'empty' => 306],
-                            '19 KG Commercial' => ['full' => 143, 'empty' => 50],
-                            '5 KG Commercial' => ['full' => 142, 'empty' => 280],
-                            '5 KG Domestic' => ['full' => 63, 'empty' => 191],
-                            '2 KG Commercial' => ['full' => 119, 'empty' => 55]
-                        ];
-
-                        $opFull = $prev ? (int)$prev['ClosingFull'] : ($defaultOpenings[$cylType]['full'] ?? 0);
-                        $opEmpty = $prev ? (int)$prev['ClosingEmpty'] : ($defaultOpenings[$cylType]['empty'] ?? 0);
+                        $baseline = self::getBaselineOpening($db, $cylType);
+                        $opFull = $prev ? (int)$prev['ClosingFull'] : $baseline['full'];
+                        $opEmpty = $prev ? (int)$prev['ClosingEmpty'] : $baseline['empty'];
                         $oldFull = $opFull;
                         $newFull = $opFull + $qty;
 
@@ -367,15 +370,17 @@ class StockController {
                             $updSt = $db->prepare("UPDATE cylinder_stock SET OpeningEmpty = ?, SentToPlant = ?, ClosingEmpty = ?, UpdatedAt = ? WHERE StockID = ?");
                             $updSt->execute([$opEmpty, $newSent, $clEmpty, $now, $stRow['StockID']]);
                         } else {
-                            $defaultOpenings = [
-                                '14.2 KG Domestic' => ['full' => 683, 'empty' => 306],
-                                '19 KG Commercial' => ['full' => 143, 'empty' => 50],
-                                '5 KG Commercial' => ['full' => 142, 'empty' => 280],
-                                '5 KG Domestic' => ['full' => 63, 'empty' => 191],
-                                '2 KG Commercial' => ['full' => 119, 'empty' => 55]
-                            ];
-                            $opFull = $defaultOpenings[$cylType]['full'] ?? 0;
-                            $opEmpty = max($qty, $defaultOpenings[$cylType]['empty'] ?? 0);
+                            $prevDate = date('Y-m-d', strtotime($retDate . ' -1 day'));
+                            $prevStmt = $db->prepare("SELECT ClosingFull, ClosingEmpty FROM cylinder_stock WHERE Date = ? AND CylinderType = ?");
+                            $prevStmt->execute([$prevDate, $cylType]);
+                            $prev = $prevStmt->fetch();
+
+                            $baseline = self::getBaselineOpening($db, $cylType);
+                            $opFull = $prev ? (int)$prev['ClosingFull'] : $baseline['full'];
+                            $opEmpty = $prev ? (int)$prev['ClosingEmpty'] : $baseline['empty'];
+                            if ($opEmpty < $qty) {
+                                $opEmpty = $qty;
+                            }
                             $clEmpty = max(0, $opEmpty - $qty);
 
                             $insSt = $db->prepare("INSERT INTO cylinder_stock (
@@ -589,16 +594,9 @@ class StockController {
                 $prevStmt->execute([$prevDate, $cylType]);
                 $prev = $prevStmt->fetch();
 
-                $defaultOpenings = [
-                    '14.2 KG Domestic' => ['full' => 683, 'empty' => 306],
-                    '19 KG Commercial' => ['full' => 143, 'empty' => 50],
-                    '5 KG Commercial' => ['full' => 142, 'empty' => 280],
-                    '5 KG Domestic' => ['full' => 63, 'empty' => 191],
-                    '2 KG Commercial' => ['full' => 119, 'empty' => 55]
-                ];
-
-                $opFull = $prev ? (int)$prev['ClosingFull'] : ($defaultOpenings[$cylType]['full'] ?? 0);
-                $opEmpty = $prev ? (int)$prev['ClosingEmpty'] : ($defaultOpenings[$cylType]['empty'] ?? 0);
+                $baseline = self::getBaselineOpening($db, $cylType);
+                $opFull = $prev ? (int)$prev['ClosingFull'] : $baseline['full'];
+                $opEmpty = $prev ? (int)$prev['ClosingEmpty'] : $baseline['empty'];
                 $truckEmptyTotal = $emptyQty + $defectiveQty;
                 if ($opEmpty < $truckEmptyTotal) {
                     $opEmpty = $truckEmptyTotal;

@@ -65,12 +65,13 @@ export const itemsModule = {
                 <th>Cylinder Variant</th>
                 <th class="text-right">Current Rate</th>
                 <th class="text-center">GST %</th>
+                <th class="text-center">Initial Stock</th>
                 <th class="text-center">SV Package</th>
                 <th class="text-center">Actions</th>
               </tr>
             </thead>
             <tbody id="item-table-body">
-              <tr><td colspan="8" class="text-center" style="color:var(--text-muted); padding:24px;">Loading item rates catalog...</td></tr>
+              <tr><td colspan="9" class="text-center" style="color:var(--text-muted); padding:24px;">Loading item rates catalog...</td></tr>
             </tbody>
           </table>
         </div>
@@ -99,7 +100,7 @@ export const itemsModule = {
     if (!tbody) return;
 
     if (!res.ok || !res.data || !res.data.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding:24px; color:var(--text-muted);">No items found in catalog.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center" style="padding:24px; color:var(--text-muted);">No items found in catalog.</td></tr>';
       itemsList = [];
       return;
     }
@@ -113,6 +114,9 @@ export const itemsModule = {
         <td>${utils.escapeHtml(it.CylinderType || '-')}</td>
         <td class="text-right num-font" style="font-weight:700; color:var(--primary); font-size:15px;">${utils.formatCurrency(it.Rate)}</td>
         <td class="text-center num-font">${it.TaxPercent}%</td>
+        <td class="text-center num-font" style="font-weight:700;">
+          ${it.CylinderType ? `Full: ${it.OpeningStock || 0} | Emp: ${it.OpeningEmptyStock || 0}` : `${it.OpeningStock || 0}`}
+        </td>
         <td class="text-center">${it.IsPackageItem ? '<span class="badge badge-success">INCLUDED</span>' : '-'}</td>
         <td class="text-center">
           <button class="btn btn-secondary btn-sm view-rate-hist-btn" data-id="${it.ItemID}" data-code="${it.ItemCode}" title="Rate History">
@@ -465,6 +469,27 @@ export const itemsModule = {
             <input type="text" id="im-desc" class="form-control" placeholder="Brief technical or billing description" value="${item ? utils.escapeHtml(item.Description || '') : ''}">
           </div>
         </div>
+
+        <!-- Section 3: Initial Opening Stock (Default: 0) -->
+        <div class="modal-section-card">
+          <div class="modal-section-header">
+            <i class="fa-solid fa-warehouse"></i>
+            <span>Initial Opening Stock (First-Time Baseline)</span>
+          </div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">
+            Set initial opening stock count if starting with existing inventory (Default is 0). Subsequent stock will grow automatically when Truck Stock In is unloaded.
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label"><i class="fa-solid fa-bottle-water"></i> Initial Full Cylinders (or Item Units)</label>
+              <input type="number" id="im-op-stock" class="form-control num-font" placeholder="0" value="${item ? (item.OpeningStock || 0) : '0'}" min="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label"><i class="fa-solid fa-recycle"></i> Initial Sound Empty Cylinders</label>
+              <input type="number" id="im-op-empty" class="form-control num-font" placeholder="0" value="${item ? (item.OpeningEmptyStock || 0) : '0'}" min="0">
+            </div>
+          </div>
+        </div>
       </div>
     `;
 
@@ -485,6 +510,8 @@ export const itemsModule = {
         Rate: rate || 0,
         TaxPercent: parseFloat(document.getElementById('im-tax').value) || 0,
         IsPackageItem: document.getElementById('im-is-pkg').checked ? 1 : 0,
+        OpeningStock: parseInt(document.getElementById('im-op-stock')?.value) || 0,
+        OpeningEmptyStock: parseInt(document.getElementById('im-op-empty')?.value) || 0,
         Description: document.getElementById('im-desc').value.trim()
       };
     });

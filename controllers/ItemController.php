@@ -63,7 +63,8 @@ class ItemController {
                 $taxPct = (float)($payload['TaxPercent'] ?? 0);
                 $desc = trim($payload['Description'] ?? '');
                 $isPkg = !empty($payload['IsPackageItem']) ? 1 : 0;
-                $status = trim($payload['Status'] ?? 'ACTIVE');
+                $opStock = max(0, (int)($payload['OpeningStock'] ?? 0));
+                $opEmptyStock = max(0, (int)($payload['OpeningEmptyStock'] ?? 0));
                 $now = date('Y-m-d H:i:s');
 
                 if (empty($code) || empty($name)) {
@@ -92,11 +93,13 @@ class ItemController {
 
                     $upd = $db->prepare("UPDATE item_rates SET 
                         ItemCode = ?, ItemName = ?, Category = ?, CylinderType = ?, Rate = ?, RatePaise = ?,
-                        TaxPercent = ?, Description = ?, IsPackageItem = ?, Status = ?, UpdatedBy = ?, UpdatedAt = ?
+                        TaxPercent = ?, Description = ?, IsPackageItem = ?, OpeningStock = ?, OpeningEmptyStock = ?,
+                        Status = ?, UpdatedBy = ?, UpdatedAt = ?
                         WHERE ItemID = ?");
                     $upd->execute([
                         $code, $name, $cat, $cylType, $rate, $ratePaise,
-                        $taxPct, $desc, $isPkg, $status, $user['userId'], $now, $itemId
+                        $taxPct, $desc, $isPkg, $opStock, $opEmptyStock,
+                        $status, $user['userId'], $now, $itemId
                     ]);
 
                     Audit::log($user['userId'], $user['username'], 'UPDATE', 'items', (string)$itemId, $old, $payload, 'Item rate updated');
@@ -110,11 +113,11 @@ class ItemController {
 
                     $ins = $db->prepare("INSERT INTO item_rates (
                         ItemCode, ItemName, Category, CylinderType, Rate, RatePaise, TaxPercent,
-                        Description, IsPackageItem, Status, CreatedBy, CreatedAt, UpdatedAt
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?)");
+                        Description, IsPackageItem, OpeningStock, OpeningEmptyStock, Status, CreatedBy, CreatedAt, UpdatedAt
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?)");
                     $ins->execute([
                         $code, $name, $cat, $cylType, $rate, $ratePaise, $taxPct,
-                        $desc, $isPkg, $user['userId'], $now, $now
+                        $desc, $isPkg, $opStock, $opEmptyStock, $user['userId'], $now, $now
                     ]);
                     $newId = (int)$db->lastInsertId();
 

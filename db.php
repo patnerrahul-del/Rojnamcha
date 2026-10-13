@@ -296,6 +296,8 @@ class Database {
             TaxPercent REAL DEFAULT 0.0,
             Description TEXT,
             IsPackageItem INTEGER DEFAULT 0,
+            OpeningStock INTEGER NOT NULL DEFAULT 0,
+            OpeningEmptyStock INTEGER NOT NULL DEFAULT 0,
             Status TEXT DEFAULT 'ACTIVE',
             IsDeleted INTEGER DEFAULT 0,
             CreatedBy INTEGER,
@@ -305,6 +307,12 @@ class Database {
             DeletedBy INTEGER,
             DeletedAt TEXT
         )");
+        try {
+            self::execDdl($db, "ALTER TABLE item_rates ADD COLUMN OpeningStock INTEGER NOT NULL DEFAULT 0");
+        } catch (Exception $e) {}
+        try {
+            self::execDdl($db, "ALTER TABLE item_rates ADD COLUMN OpeningEmptyStock INTEGER NOT NULL DEFAULT 0");
+        } catch (Exception $e) {}
 
         // 9. Rate History Table
         self::execDdl($db, "CREATE TABLE IF NOT EXISTS rate_history (
