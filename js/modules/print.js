@@ -265,7 +265,7 @@ export const printEngine = {
             </div>
           </div>
           <div class="ds-doc-meta">
-            <div class="ds-doc-title">TAX INVOICE</div>
+            <div class="ds-doc-title">${Number(bill.TaxAmount) > 0 ? 'TAX INVOICE' : 'BILL OF SUPPLY'}</div>
             <div class="ds-doc-num">${utils.escapeHtml(bill.BillNumber || 'INV-DRAFT')}</div>
             <div class="ds-badge">${bill.IsCancelled ? 'CANCELLED' : 'ORIGINAL FOR RECIPIENT'}</div>
           </div>

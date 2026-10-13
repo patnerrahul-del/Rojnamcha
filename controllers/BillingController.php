@@ -238,6 +238,11 @@ class BillingController {
                 $consumerNo = trim($payload['ConsumerNo'] ?? '');
                 $customerType = trim($payload['CustomerType'] ?? ($payload['CustType'] ?? 'DOMESTIC'));
 
+                // Check if GST is globally enabled in Settings
+                $gstSettingStmt = $db->query("SELECT SettingValue FROM settings WHERE SettingKey = 'GST_ENABLED' LIMIT 1");
+                $gstSettingVal = $gstSettingStmt ? $gstSettingStmt->fetchColumn() : '1';
+                $isGstEnabled = ($gstSettingVal !== '0');
+
                 // Calculate Cart in Integer Paise
                 $calculatedSubtotalPaise = 0;
                 $calculatedDiscountPaise = (int)round(((float)($payload['DiscountAmount'] ?? 0)) * 100);
@@ -255,7 +260,8 @@ class BillingController {
                     }
                     $ratePaise = (int)round($rate * 100);
                     $lineTotalPaise = $ratePaise * $qty;
-                    $taxPct = (float)($it['TaxPercent'] ?? 0);
+                    // If GST is disabled in settings, tax is strictly 0
+                    $taxPct = $isGstEnabled ? (float)($it['TaxPercent'] ?? 0) : 0.0;
                     $lineTaxPaise = (int)round(($lineTotalPaise * $taxPct) / 100);
 
                     $calculatedSubtotalPaise += $lineTotalPaise;

@@ -12,14 +12,31 @@ import { printEngine } from './print.js';
 let availableItems = [];
 let availableCustomers = [];
 let cart = [];
+let isGstEnabled = true;
 
 export const billingModule = {
   activeMode: 'sale', // 'sale' | 'sv_package' | 'tv_out'
 
   async init() {
     this.renderContainer();
-    await Promise.all([this.loadItems(), this.loadCustomers(), this.loadHawkers(), this.loadRecentBills()]);
+    await Promise.all([this.loadSettings(), this.loadItems(), this.loadCustomers(), this.loadHawkers(), this.loadRecentBills()]);
     this.initCart();
+  },
+
+  async loadSettings() {
+    try {
+      const res = await api('getSettings', {}, { loader: false });
+      if (res.ok && res.data && res.data.map) {
+        isGstEnabled = (res.data.map['GST_ENABLED'] !== '0');
+      }
+    } catch (e) {
+      console.warn('Failed to load settings in billing:', e);
+      isGstEnabled = true;
+    }
+    const taxRow = document.getElementById('pos-tax-summary-row');
+    if (taxRow) {
+      taxRow.style.display = isGstEnabled ? 'flex' : 'none';
+    }
   },
 
   renderContainer() {
@@ -210,7 +227,7 @@ export const billingModule = {
                   <span>Subtotal:</span>
                   <span id="pos-summary-subtotal" class="num-font">₹0.00</span>
                 </div>
-                <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:13px;">
+                <div id="pos-tax-summary-row" style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:13px;">
                   <span>GST Tax:</span>
                   <span id="pos-summary-tax" class="num-font">₹0.00</span>
                 </div>
@@ -1228,7 +1245,8 @@ async loadCustomers() {
 
     cart.forEach(it => {
       const lineTotalPaise = it.RatePaise * it.Quantity;
-      const lineTaxPaise = Math.round((lineTotalPaise * it.TaxPercent) / 100);
+      const taxRate = isGstEnabled ? (Number(it.TaxPercent) || 0) : 0;
+      const lineTaxPaise = Math.round((lineTotalPaise * taxRate) / 100);
       subtotalPaise += lineTotalPaise;
       taxPaise += lineTaxPaise;
     });
@@ -1402,7 +1420,10 @@ async loadCustomers() {
       PaidHPPay: parseFloat(document.getElementById('pos-pay-hppay')?.value || 0),
       PaidDues: duesAmount,
       PaidBank: parseFloat(document.getElementById('pos-pay-bank')?.value || 0),
-      items: cart
+      items: cart.map(item => ({
+        ...item,
+        TaxPercent: isGstEnabled ? (Number(item.TaxPercent) || 0) : 0
+      }))
     };
 
     const res = await api('addBill', payload, { loaderMessage: 'Generating tax invoice...' });
@@ -1806,7 +1827,7 @@ async loadCustomers() {
 
           <div style="background:var(--bg-body); border:1px solid var(--border); border-radius:var(--r-sm); padding:12px; font-size:12.5px;">
             <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>Subtotal:</span> <span class="num-font">${utils.formatCurrency(bill.Subtotal || 0)}</span></div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>GST Tax:</span> <span class="num-font">${utils.formatCurrency(bill.TaxAmount || 0)}</span></div>
+            ${Number(bill.TaxAmount) > 0 ? `<div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span>GST Tax:</span> <span class="num-font">${utils.formatCurrency(bill.TaxAmount)}</span></div>` : ''}
             <div style="display:flex; justify-content:space-between; margin-bottom:6px;"><span>Discount:</span> <span class="num-font">-${utils.formatCurrency(bill.DiscountAmount || 0)}</span></div>
             <div style="display:flex; justify-content:space-between; font-size:16px; font-weight:800; border-top:1px dashed var(--border); padding-top:6px; color:var(--primary);">
               <span>Grand Total:</span>
