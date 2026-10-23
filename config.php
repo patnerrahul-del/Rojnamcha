@@ -24,9 +24,32 @@ define('MAX_FAILED_LOGIN_ATTEMPTS', 5);
 define('LOGIN_LOCKOUT_MINUTES', 10);
 define('JWT_SECRET_KEY', 'SS-HP-GAS-PANDAUL-SECURE-KEY-2026-ENCRYPTION-SALT');
 
+// Environment & Serverless Helper
+function get_env_var(string $key): ?string {
+    $val = getenv($key);
+    if ($val !== false && $val !== null && $val !== '') {
+        return (string)$val;
+    }
+    if (isset($_SERVER[$key]) && $_SERVER[$key] !== '') {
+        return (string)$_SERVER[$key];
+    }
+    if (isset($_ENV[$key]) && $_ENV[$key] !== '') {
+        return (string)$_ENV[$key];
+    }
+    return null;
+}
+
+$isServerless = (!empty(get_env_var('VERCEL')) || !empty(get_env_var('AWS_LAMBDA_FUNCTION_NAME')) || !empty($_SERVER['VERCEL']));
+
 // Database Configuration
 // Priority 1: Supabase / Cloud Database URL (DATABASE_URL, POSTGRES_URL, or SUPABASE_DB_URL)
-$dbUrl = getenv('DATABASE_URL') ?: (getenv('POSTGRES_URL') ?: (getenv('SUPABASE_DB_URL') ?: ''));
+$dbUrl = get_env_var('DATABASE_URL') 
+    ?? get_env_var('POSTGRES_URL') 
+    ?? get_env_var('POSTGRES_PRISMA_URL') 
+    ?? get_env_var('POSTGRES_URL_NON_POOLING') 
+    ?? get_env_var('SUPABASE_DB_URL') 
+    ?? '';
+
 if (!empty($dbUrl)) {
     $parsed = parse_url($dbUrl);
     if ($parsed) {
@@ -51,18 +74,18 @@ if (!empty($dbUrl)) {
 }
 
 // Priority 2: Individual Environment Variables (Vercel / Docker / Production)
-if (!defined('DB_DRIVER') && (getenv('DB_DRIVER') || getenv('DB_HOST'))) {
-    $driver = strtolower(getenv('DB_DRIVER') ?: 'pgsql');
+if (!defined('DB_DRIVER') && (get_env_var('DB_DRIVER') || get_env_var('DB_HOST'))) {
+    $driver = strtolower(get_env_var('DB_DRIVER') ?: 'pgsql');
     if ($driver === 'postgres' || $driver === 'postgresql') {
         $driver = 'pgsql';
     }
     define('DB_DRIVER', $driver);
-    define('DB_HOST', getenv('DB_HOST') ?: '127.0.0.1');
-    define('DB_PORT', (string)(getenv('DB_PORT') ?: ($driver === 'pgsql' ? '5432' : '3306')));
-    define('DB_NAME', getenv('DB_NAME') ?: ($driver === 'pgsql' ? 'postgres' : 'shiv_shakti_erp'));
-    define('DB_USER', getenv('DB_USER') ?: 'postgres');
-    define('DB_PASS', getenv('DB_PASS') ?: (getenv('DB_PASSWORD') ?: ''));
-    define('DB_SSLMODE', getenv('DB_SSLMODE') ?: 'require');
+    define('DB_HOST', get_env_var('DB_HOST') ?: '127.0.0.1');
+    define('DB_PORT', (string)(get_env_var('DB_PORT') ?: ($driver === 'pgsql' ? '5432' : '3306')));
+    define('DB_NAME', get_env_var('DB_NAME') ?: ($driver === 'pgsql' ? 'postgres' : 'shiv_shakti_erp'));
+    define('DB_USER', get_env_var('DB_USER') ?: 'postgres');
+    define('DB_PASS', get_env_var('DB_PASS') ?: (get_env_var('DB_PASSWORD') ?: ''));
+    define('DB_SSLMODE', get_env_var('DB_SSLMODE') ?: 'require');
 }
 
 // Priority 3: Local dynamic configuration file via data/db_config.json
@@ -95,7 +118,12 @@ if (!defined('DB_DRIVER')) {
     define('DB_SSLMODE', 'disable');
 }
 
-define('DB_SQLITE_PATH', APP_ROOT . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'erp_database.sqlite');
+// On Serverless (Vercel / AWS Lambda), the local filesystem is read-only; use /tmp for SQLite
+if ($isServerless) {
+    define('DB_SQLITE_PATH', sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'erp_database.sqlite');
+} else {
+    define('DB_SQLITE_PATH', APP_ROOT . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'erp_database.sqlite');
+}
 
 // Financial & Business Settings
 define('CURRENCY_SYMBOL', '₹');

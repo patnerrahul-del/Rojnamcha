@@ -34,9 +34,10 @@ class Database {
                 if (DB_DRIVER === 'sqlite') {
                     $dbDir = dirname(DB_SQLITE_PATH);
                     if (!is_dir($dbDir)) {
-                        mkdir($dbDir, 0755, true);
-                        // Protect data directory from direct web access
-                        file_put_contents($dbDir . DIRECTORY_SEPARATOR . '.htaccess', "Deny from all\n");
+                        @mkdir($dbDir, 0755, true);
+                    }
+                    if (is_dir($dbDir) && is_writable($dbDir) && !file_exists($dbDir . DIRECTORY_SEPARATOR . '.htaccess')) {
+                        @file_put_contents($dbDir . DIRECTORY_SEPARATOR . '.htaccess', "Deny from all\n");
                     }
                     $dsn = 'sqlite:' . DB_SQLITE_PATH;
                     self::$instance = new AppPDO($dsn, null, null, [
@@ -69,11 +70,15 @@ class Database {
             } catch (PDOException $e) {
                 http_response_code(500);
                 header('Content-Type: application/json; charset=utf-8');
+                $errorMsg = $e->getMessage();
+                if (stripos($errorMsg, 'unable to open database file') !== false) {
+                    $errorMsg .= '. Tip: If running on Vercel, please configure DATABASE_URL (Supabase PostgreSQL Connection String) in Vercel Settings -> Environment Variables and redeploy.';
+                }
                 echo json_encode([
                     'ok' => false,
                     'error' => [
                         'code' => 'SERVER',
-                        'message' => 'Database connection failed: ' . $e->getMessage()
+                        'message' => 'Database connection failed: ' . $errorMsg
                     ]
                 ]);
                 exit;
