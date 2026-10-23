@@ -30,10 +30,47 @@ export const utils = {
   },
 
   /**
-   * Current Date in YYYY-MM-DD
+   * System Working Business Date in YYYY-MM-DD
+   * If a specific business date is active/open, returns that date;
+   * otherwise falls back to system actual date.
    */
   today() {
-    return new Date().toISOString().split('T')[0];
+    try {
+      const activeWorkingDate = localStorage.getItem('erp_active_working_date');
+      if (activeWorkingDate && /^\d{4}-\d{2}-\d{2}$/.test(activeWorkingDate)) {
+        return activeWorkingDate;
+      }
+    } catch (e) {}
+    return this.realToday();
+  },
+
+  /**
+   * Actual Real Calendar Date in YYYY-MM-DD
+   */
+  realToday() {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  },
+
+  /**
+   * Check if current working date is a Back-Dated session
+   */
+  isBackDateActive() {
+    return this.today() !== this.realToday();
+  },
+
+  /**
+   * Set active business working date
+   */
+  setWorkingDate(dateStr) {
+    if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      localStorage.setItem('erp_active_working_date', dateStr);
+    } else {
+      localStorage.removeItem('erp_active_working_date');
+    }
   },
 
   /**

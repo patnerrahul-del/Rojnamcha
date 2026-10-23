@@ -543,9 +543,12 @@ export const billingModule = {
       <!-- Recent Bills Log Table (Common to all views) -->
       <div class="card" style="margin-top:24px;">
         <div class="card-header">
-          <div class="card-title"><i class="fa-solid fa-clock-rotate-left"></i> Today's Bills Register</div>
-          <div style="display:flex; gap:8px;">
-            <input type="text" id="pos-search-bill" class="form-control" placeholder="Search bill no or customer..." style="width:240px; height:34px; font-size:12px;">
+          <div class="card-title" id="pos-register-title">
+            <i class="fa-solid fa-clock-rotate-left"></i> Bills Register (${utils.isBackDateActive() ? 'Back-Date: ' + utils.formatDate(utils.today()) : "Today's Bills"})
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <input type="date" id="pos-filter-bill-date" class="form-control" value="${utils.today()}" style="width:145px; height:34px; font-size:12px;" title="Filter register by date">
+            <input type="text" id="pos-search-bill" class="form-control" placeholder="Search bill no or customer..." style="width:220px; height:34px; font-size:12px;">
             <button id="pos-reload-bills-btn" class="btn btn-secondary btn-sm"><i class="fa-solid fa-arrows-rotate"></i></button>
           </div>
         </div>
@@ -1007,11 +1010,22 @@ export const billingModule = {
     });
 
     // Reload Bills
-    document.getElementById('pos-reload-bills-btn')?.addEventListener('click', () => this.loadRecentBills());
+    document.getElementById('pos-reload-bills-btn')?.addEventListener('click', () => {
+      const d = document.getElementById('pos-filter-bill-date')?.value || utils.today();
+      const q = document.getElementById('pos-search-bill')?.value || '';
+      this.loadRecentBills(q, d);
+    });
 
-    // Filter Bills
+    // Date Filter in Bills Register
+    document.getElementById('pos-filter-bill-date')?.addEventListener('change', (e) => {
+      const q = document.getElementById('pos-search-bill')?.value || '';
+      this.loadRecentBills(q, e.target.value);
+    });
+
+    // Filter Bills by search text
     document.getElementById('pos-search-bill')?.addEventListener('input', utils.debounce((e) => {
-      this.loadRecentBills(e.target.value);
+      const d = document.getElementById('pos-filter-bill-date')?.value || utils.today();
+      this.loadRecentBills(e.target.value, d);
     }, 300));
   },
 
@@ -1559,13 +1573,14 @@ async loadCustomers() {
     }
   },
 
-  async loadRecentBills(search = '') {
-    const res = await api('listBills', { date: utils.today(), search }, { loader: false });
+  async loadRecentBills(search = '', filterDate = null) {
+    const targetDate = filterDate || document.getElementById('pos-filter-bill-date')?.value || utils.today();
+    const res = await api('listBills', { date: targetDate, search }, { loader: false });
     const tbody = document.getElementById('pos-recent-bills-body');
     if (!tbody) return;
 
     if (!res.ok || !res.data || !res.data.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center" style="color:var(--text-muted); padding:20px;">No bills generated for today yet.</td></tr>';
+      tbody.innerHTML = `<tr><td colspan="7" class="text-center" style="color:var(--text-muted); padding:20px;">No bills generated for ${utils.formatDate(targetDate)} yet.</td></tr>`;
       return;
     }
 

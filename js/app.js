@@ -257,10 +257,136 @@ function showMainApp() {
     }
   }
 
+  // Initialize and synchronize Global Working Business Date
+  initWorkingDateWidget();
+
   router.init();
   searchModule.init();
   const initialRoute = router.getRouteFromUrl();
   router.navigate(initialRoute);
+}
+
+/**
+ * Global Working Business Date Manager
+ * Keeps all modules (POS, Dispatch, Stock, Dues, Rojnamcha, Cashbook) in sync
+ */
+async function initWorkingDateWidget() {
+  const dateInput = document.getElementById('topbar-working-date-input');
+  const badge = document.getElementById('working-date-badge');
+  const dot = document.getElementById('working-date-status-dot');
+  const actionBtn = document.getElementById('btn-working-date-action');
+  const widget = document.getElementById('topbar-working-date-widget');
+  if (!dateInput) return;
+
+  // Sync working date from server settings or fallback to localStorage
+  try {
+    const res = await api('getWorkingDate', {}, { loader: false, silentError: true });
+    if (res.ok && res.data) {
+      if (res.data.workingDate) {
+        utils.setWorkingDate(res.data.workingDate);
+      }
+    }
+  } catch (e) {}
+
+  const updateUI = async () => {
+    const curDate = utils.today();
+    const realDate = utils.realToday();
+    const isBackDate = (curDate !== realDate);
+    dateInput.value = curDate;
+
+    // Check if the current working date is closed in cashbook
+    let isDayClosed = false;
+    try {
+      const cbRes = await api('getCashbook', { date: curDate }, { loader: false, silentError: true });
+      if (cbRes.ok && cbRes.data && Number(cbRes.data.IsClosed) === 1) {
+        isDayClosed = true;
+      }
+    } catch (e) {}
+
+    if (badge && dot) {
+      if (isDayClosed) {
+        badge.className = 'badge badge-danger';
+        badge.innerHTML = '<i class="fa-solid fa-lock"></i> CLOSED';
+        dot.style.background = '#ef4444';
+        dot.style.boxShadow = '0 0 6px #ef4444';
+        if (widget) widget.style.borderColor = '#fca5a5';
+      } else if (isBackDate) {
+        badge.className = 'badge badge-warning';
+        badge.innerHTML = '<i class="fa-solid fa-clock-rotate-left"></i> BACK-DATE OPEN';
+        dot.style.background = '#f59e0b';
+        dot.style.boxShadow = '0 0 6px #f59e0b';
+        if (widget) widget.style.borderColor = '#fde68a';
+      } else {
+        badge.className = 'badge badge-success';
+        badge.innerHTML = '<i class="fa-solid fa-circle-check"></i> TODAY OPEN';
+        dot.style.background = '#10b981';
+        dot.style.boxShadow = '0 0 6px #10b981';
+        if (widget) widget.style.borderColor = 'var(--border)';
+      }
+    }
+  };
+
+  await updateUI();
+
+  // On manual date picker change
+  dateInput.addEventListener('change', async (e) => {
+    const selectedDate = e.target.value;
+    if (!selectedDate) return;
+    await setGlobalWorkingDate(selectedDate);
+    await updateUI();
+  });
+
+  // Action button modal: Open Back Date, Today, or Close Day
+  const handleActionClick = async () => {
+    const curDate = utils.today();
+    const realDate = utils.realToday();
+
+    const confirmed = await ui.confirm(
+      `<div style="text-align:left; font-size:13px; line-height:1.6;">
+        <p>Current Active System Date: <strong>${utils.formatDate(curDate)}</strong> (${curDate})</p>
+        <p style="color:var(--text-muted); margin-bottom:12px;">Choose an action to change the system-wide active working date across all billing, stock, and registers:</p>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <button type="button" id="modal-btn-open-today" class="btn btn-outline btn-sm" style="text-align:left; justify-content:flex-start;">
+            <i class="fa-solid fa-calendar-day" style="color:#10b981; margin-right:8px;"></i> <strong>Switch to Today (${utils.formatDate(realDate)})</strong>
+          </button>
+          <button type="button" id="modal-btn-open-yesterday" class="btn btn-outline btn-sm" style="text-align:left; justify-content:flex-start;">
+            <i class="fa-solid fa-clock-rotate-left" style="color:#f59e0b; margin-right:8px;"></i> <strong>Open Yesterday (${utils.formatDate(new Date(Date.now() - 86400000).toISOString().split('T')[0])})</strong>
+          </button>
+        </div>
+      </div>`,
+      'Active Business Working Date',
+      'Select Custom Date'
+    );
+
+    if (confirmed) {
+      const customDate = await ui.prompt('Enter or pick Date (YYYY-MM-DD):', curDate, 'Set Business Working Date');
+      if (customDate && /^\d{4}-\d{2}-\d{2}$/.test(customDate)) {
+        await setGlobalWorkingDate(customDate);
+        await updateUI();
+      }
+    }
+  };
+
+  actionBtn?.addEventListener('click', handleActionClick);
+  badge?.addEventListener('click', handleActionClick);
+}
+
+/**
+ * Persist new working date to server settings and refresh current route view
+ */
+async function setGlobalWorkingDate(dateStr) {
+  utils.setWorkingDate(dateStr);
+  try {
+    await api('setWorkingDate', { date: dateStr }, { loader: false, silentError: true });
+  } catch (e) {}
+
+  ui.toast(`Active System Working Date set to: ${utils.formatDate(dateStr)}`);
+
+  // Reload current active module to immediately reflect the new working date
+  const currentRoute = router.getCurrentRoute();
+  if (currentRoute) {
+    router.navigate(currentRoute, false);
+  }
 }
 
 function bindGlobalEvents() {

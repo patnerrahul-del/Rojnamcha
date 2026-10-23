@@ -261,7 +261,24 @@
           </div>
         </div>
 
-        <div class="topbar-right">
+        <div class="topbar-right" style="display:flex; align-items:center; gap:10px;">
+          <!-- Global Active Working Business Date Control Widget -->
+          <div id="topbar-working-date-widget" style="display:flex; align-items:center; gap:8px; background:var(--bg-body); border:1px solid var(--border); padding:4px 10px; border-radius:30px; box-shadow:var(--shadow-sm);">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span id="working-date-status-dot" style="display:inline-block; width:9px; height:9px; border-radius:50%; background:#10b981; box-shadow:0 0 6px #10b981;"></span>
+              <span id="working-date-label" style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:0.4px; color:var(--text-muted);">WORKING DATE:</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <input type="date" id="topbar-working-date-input" style="background:transparent; border:none; font-family:'JetBrains Mono', monospace; font-size:12.5px; font-weight:800; color:var(--text-main); cursor:pointer; padding:0; outline:none;">
+              <span id="working-date-badge" class="badge badge-success" style="font-size:10.5px; padding:2px 7px; font-weight:800; cursor:pointer;" title="Click to view/change day status">
+                TODAY
+              </span>
+            </div>
+            <button id="btn-working-date-action" class="btn btn-sm btn-outline" style="border:none; padding:2px 6px; font-size:11px; font-weight:700; height:24px; border-radius:12px;" title="Day Actions (Open Back Date / Close Day)">
+              <i class="fa-solid fa-calendar-day"></i> Change
+            </button>
+          </div>
+
           <!-- Quick Palette Switcher -->
           <div style="position:relative;">
             <button id="btn-theme-palette" class="btn btn-outline btn-sm" title="Choose Palette Theme" style="height:38px; width:38px; padding:0;">
