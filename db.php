@@ -6,6 +6,25 @@
 
 require_once __DIR__ . '/config.php';
 
+/**
+ * Extended PDO with transparent PostgreSQL lastInsertId support
+ */
+class AppPDO extends PDO {
+    #[\ReturnTypeWillChange]
+    public function lastInsertId(?string $name = null) {
+        $driver = $this->getAttribute(PDO::ATTR_DRIVER_NAME);
+        if ($driver === 'pgsql' && $name === null) {
+            try {
+                $val = $this->query("SELECT lastval()")->fetchColumn();
+                if ($val !== false && $val !== null) {
+                    return (string)$val;
+                }
+            } catch (Throwable $e) {}
+        }
+        return parent::lastInsertId($name);
+    }
+}
+
 class Database {
     private static ?PDO $instance = null;
 
@@ -20,7 +39,7 @@ class Database {
                         file_put_contents($dbDir . DIRECTORY_SEPARATOR . '.htaccess', "Deny from all\n");
                     }
                     $dsn = 'sqlite:' . DB_SQLITE_PATH;
-                    self::$instance = new PDO($dsn, null, null, [
+                    self::$instance = new AppPDO($dsn, null, null, [
                         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                         PDO::ATTR_EMULATE_PREPARES => false
@@ -28,9 +47,17 @@ class Database {
                     // Enable SQLite Foreign Keys and WAL Mode for high performance
                     self::$instance->exec('PRAGMA foreign_keys = ON;');
                     self::$instance->exec('PRAGMA journal_mode = WAL;');
+                } else if (DB_DRIVER === 'pgsql') {
+                    $ssl = defined('DB_SSLMODE') ? DB_SSLMODE : 'require';
+                    $dsn = 'pgsql:host=' . DB_HOST . ';port=' . DB_PORT . ';dbname=' . DB_NAME . ';sslmode=' . $ssl;
+                    self::$instance = new AppPDO($dsn, DB_USER, DB_PASS, [
+                        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                        PDO::ATTR_EMULATE_PREPARES => false
+                    ]);
                 } else {
                     $dsn = 'mysql:host=' . DB_HOST . ';port=' . DB_PORT . ';dbname=' . DB_NAME . ';charset=utf8mb4';
-                    self::$instance = new PDO($dsn, DB_USER, DB_PASS, [
+                    self::$instance = new AppPDO($dsn, DB_USER, DB_PASS, [
                         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                         PDO::ATTR_EMULATE_PREPARES => false
@@ -140,10 +167,34 @@ class Database {
         return $sql;
     }
 
+    public static function sqliteToPgsql(string $sql): string {
+        // Primary keys: INTEGER PRIMARY KEY AUTOINCREMENT -> SERIAL PRIMARY KEY
+        $sql = preg_replace(
+            '/(\b\w+\b)\s+INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT/i',
+            '$1 SERIAL PRIMARY KEY',
+            $sql
+        );
+
+        // DATETIME -> TIMESTAMP
+        $sql = preg_replace('/\bDATETIME\b/i', 'TIMESTAMP', $sql);
+
+        // ADD COLUMN -> ADD COLUMN IF NOT EXISTS
+        $sql = preg_replace('/ADD\s+COLUMN\s+(?!IF\s+NOT\s+EXISTS)/i', 'ADD COLUMN IF NOT EXISTS ', $sql);
+
+        // INSERT OR IGNORE INTO -> INSERT INTO ... ON CONFLICT DO NOTHING
+        if (preg_match('/^INSERT\s+OR\s+IGNORE\s+INTO\s+(.+)$/is', trim($sql), $m)) {
+            $sql = "INSERT INTO " . $m[1] . " ON CONFLICT DO NOTHING";
+        }
+
+        return $sql;
+    }
+
     private static function execDdl(PDO $db, string $sql): void {
         $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
         if ($driver === 'mysql') {
             $sql = self::sqliteToMysql($sql);
+        } else if ($driver === 'pgsql') {
+            $sql = self::sqliteToPgsql($sql);
         }
         $db->exec($sql);
     }
@@ -940,11 +991,17 @@ class Database {
 
         // --- SEED INITIAL DATA SAFELY ---
         self::seedInitialData($db);
+
+        if ($isMysql) {
+            try { $db->exec("SET FOREIGN_KEY_CHECKS = 1;"); } catch (Throwable $e) {}
+        }
     }
 
     private static function seedInitialData(PDO $db): void {
         $now = date('Y-m-d H:i:s');
-        $insertIgnore = ($db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') ? 'INSERT IGNORE' : 'INSERT OR IGNORE';
+        $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
+        $isMysql = ($driver === 'mysql');
+        $isPgsql = ($driver === 'pgsql');
 
         // 1. Seed Default Company Profile
         $stmt = $db->query("SELECT COUNT(*) FROM companies");
@@ -991,28 +1048,34 @@ class Database {
         ];
 
         foreach ($modules as $mod) {
-            // Admin: Full permissions
-            $db->exec("$insertIgnore INTO permissions (RoleName, ModuleName, CanCreate, CanRead, CanUpdate, CanDelete, CanExport, CanPrint, CanApprove)
-                VALUES ('ADMIN', '$mod', 1, 1, 1, 1, 1, 1, 1)");
-
-            // Manager: All except admin-specific modules
             $isMgmt = in_array($mod, ['users', 'permissions', 'company', 'settings', 'audit']);
-            $db->exec("$insertIgnore INTO permissions (RoleName, ModuleName, CanCreate, CanRead, CanUpdate, CanDelete, CanExport, CanPrint, CanApprove)
-                VALUES ('MANAGER', '$mod', " . ($isMgmt ? 0 : 1) . ", 1, " . ($isMgmt ? 0 : 1) . ", 0, 1, 1, 1)");
-
-            // Cashier: Billing, Customers, Dues, Cashbook, Print
             $isCashier = in_array($mod, ['dashboard', 'billing', 'customers', 'dues', 'cashbook', 'items', 'reports', 'rojnamcha']);
-            $db->exec("$insertIgnore INTO permissions (RoleName, ModuleName, CanCreate, CanRead, CanUpdate, CanDelete, CanExport, CanPrint, CanApprove)
-                VALUES ('CASHIER', '$mod', " . ($isCashier ? 1 : 0) . ", " . ($isCashier ? 1 : 0) . ", " . ($isCashier ? 1 : 0) . ", 0, 0, 1, 0)");
-
-            // Delivery: Dispatch, Customers read, Attendance read
             $isDelivery = in_array($mod, ['dashboard', 'dispatch', 'customers', 'attendance']);
-            $db->exec("$insertIgnore INTO permissions (RoleName, ModuleName, CanCreate, CanRead, CanUpdate, CanDelete, CanExport, CanPrint, CanApprove)
-                VALUES ('DELIVERY', '$mod', " . ($mod === 'dispatch' ? 1 : 0) . ", " . ($isDelivery ? 1 : 0) . ", 0, 0, 0, 1, 0)");
 
-            // Viewer: Read-only
-            $db->exec("$insertIgnore INTO permissions (RoleName, ModuleName, CanCreate, CanRead, CanUpdate, CanDelete, CanExport, CanPrint, CanApprove)
-                VALUES ('VIEWER', '$mod', 0, 1, 0, 0, 1, 1, 0)");
+            if ($isPgsql) {
+                $db->exec("INSERT INTO permissions (RoleName, ModuleName, CanCreate, CanRead, CanUpdate, CanDelete, CanExport, CanPrint, CanApprove)
+                    VALUES ('ADMIN', '$mod', 1, 1, 1, 1, 1, 1, 1) ON CONFLICT (RoleName, ModuleName) DO NOTHING");
+                $db->exec("INSERT INTO permissions (RoleName, ModuleName, CanCreate, CanRead, CanUpdate, CanDelete, CanExport, CanPrint, CanApprove)
+                    VALUES ('MANAGER', '$mod', " . ($isMgmt ? 0 : 1) . ", 1, " . ($isMgmt ? 0 : 1) . ", 0, 1, 1, 1) ON CONFLICT (RoleName, ModuleName) DO NOTHING");
+                $db->exec("INSERT INTO permissions (RoleName, ModuleName, CanCreate, CanRead, CanUpdate, CanDelete, CanExport, CanPrint, CanApprove)
+                    VALUES ('CASHIER', '$mod', " . ($isCashier ? 1 : 0) . ", " . ($isCashier ? 1 : 0) . ", " . ($isCashier ? 1 : 0) . ", 0, 0, 1, 0) ON CONFLICT (RoleName, ModuleName) DO NOTHING");
+                $db->exec("INSERT INTO permissions (RoleName, ModuleName, CanCreate, CanRead, CanUpdate, CanDelete, CanExport, CanPrint, CanApprove)
+                    VALUES ('DELIVERY', '$mod', " . ($mod === 'dispatch' ? 1 : 0) . ", " . ($isDelivery ? 1 : 0) . ", 0, 0, 0, 1, 0) ON CONFLICT (RoleName, ModuleName) DO NOTHING");
+                $db->exec("INSERT INTO permissions (RoleName, ModuleName, CanCreate, CanRead, CanUpdate, CanDelete, CanExport, CanPrint, CanApprove)
+                    VALUES ('VIEWER', '$mod', 0, 1, 0, 0, 1, 1, 0) ON CONFLICT (RoleName, ModuleName) DO NOTHING");
+            } else {
+                $insertIgnore = $isMysql ? 'INSERT IGNORE' : 'INSERT OR IGNORE';
+                $db->exec("$insertIgnore INTO permissions (RoleName, ModuleName, CanCreate, CanRead, CanUpdate, CanDelete, CanExport, CanPrint, CanApprove)
+                    VALUES ('ADMIN', '$mod', 1, 1, 1, 1, 1, 1, 1)");
+                $db->exec("$insertIgnore INTO permissions (RoleName, ModuleName, CanCreate, CanRead, CanUpdate, CanDelete, CanExport, CanPrint, CanApprove)
+                    VALUES ('MANAGER', '$mod', " . ($isMgmt ? 0 : 1) . ", 1, " . ($isMgmt ? 0 : 1) . ", 0, 1, 1, 1)");
+                $db->exec("$insertIgnore INTO permissions (RoleName, ModuleName, CanCreate, CanRead, CanUpdate, CanDelete, CanExport, CanPrint, CanApprove)
+                    VALUES ('CASHIER', '$mod', " . ($isCashier ? 1 : 0) . ", " . ($isCashier ? 1 : 0) . ", " . ($isCashier ? 1 : 0) . ", 0, 0, 1, 0)");
+                $db->exec("$insertIgnore INTO permissions (RoleName, ModuleName, CanCreate, CanRead, CanUpdate, CanDelete, CanExport, CanPrint, CanApprove)
+                    VALUES ('DELIVERY', '$mod', " . ($mod === 'dispatch' ? 1 : 0) . ", " . ($isDelivery ? 1 : 0) . ", 0, 0, 0, 1, 0)");
+                $db->exec("$insertIgnore INTO permissions (RoleName, ModuleName, CanCreate, CanRead, CanUpdate, CanDelete, CanExport, CanPrint, CanApprove)
+                    VALUES ('VIEWER', '$mod', 0, 1, 0, 0, 1, 1, 0)");
+            }
         }
 
         // 4. Seed Default Admin User: admin / Admin@12345

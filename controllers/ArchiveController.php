@@ -192,8 +192,11 @@ class ArchiveController {
                     }
 
                     $existingTables = array_map('strtolower', self::getExistingTables($db));
-                    $isMysql = ($db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql');
+                    $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
+                    $isMysql = ($driver === 'mysql');
+                    $isPgsql = ($driver === 'pgsql');
                     $insertIgnore = $isMysql ? 'INSERT IGNORE' : 'INSERT OR IGNORE';
+                    $quoteId = fn($id) => $isPgsql ? "\"$id\"" : "`$id`";
 
                     foreach ($tables as $tbl => $rows) {
                         if (!is_array($rows) || empty($rows)) continue;
@@ -209,10 +212,12 @@ class ArchiveController {
                         ];
                         if (!in_array($tbl, $allowed)) continue;
 
+                        $qTbl = $quoteId($tbl);
+
                         // If table was not deleted earlier (e.g. merge mode or table not in delete list)
                         if ($mode === 'replace' && !in_array($tbl, $deleteOrder ?? [])) {
                             if (in_array(strtolower($tbl), $existingTables)) {
-                                $db->exec("DELETE FROM `{$tbl}`");
+                                $db->exec("DELETE FROM {$qTbl}");
                             }
                         }
 
@@ -221,12 +226,18 @@ class ArchiveController {
                             if (!is_array($r) || empty($r)) continue;
 
                             $cols = array_keys($r);
-                            $colList = implode(', ', array_map(fn($c) => "`$c`", $cols));
+                            $colList = implode(', ', array_map(fn($c) => $quoteId($c), $cols));
                             $placeholders = implode(', ', array_fill(0, count($cols), '?'));
 
-                            $sql = ($mode === 'merge')
-                                ? "{$insertIgnore} INTO `{$tbl}` ({$colList}) VALUES ({$placeholders})"
-                                : "INSERT INTO `{$tbl}` ({$colList}) VALUES ({$placeholders})";
+                            if ($mode === 'merge') {
+                                if ($isPgsql) {
+                                    $sql = "INSERT INTO {$qTbl} ({$colList}) VALUES ({$placeholders}) ON CONFLICT DO NOTHING";
+                                } else {
+                                    $sql = "{$insertIgnore} INTO {$qTbl} ({$colList}) VALUES ({$placeholders})";
+                                }
+                            } else {
+                                $sql = "INSERT INTO {$qTbl} ({$colList}) VALUES ({$placeholders})";
+                            }
 
                             $ins = $db->prepare($sql);
                             $ins->execute(array_values($r));
@@ -432,6 +443,9 @@ class ArchiveController {
         if ($driver === 'mysql') {
             $stmt = $db->query("SHOW TABLES");
             return $stmt ? ($stmt->fetchAll(PDO::FETCH_COLUMN) ?: []) : [];
+        } else if ($driver === 'pgsql') {
+            $stmt = $db->query("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public'");
+            return $stmt ? ($stmt->fetchAll(PDO::FETCH_COLUMN) ?: []) : [];
         } else {
             $stmt = $db->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
             return $stmt ? ($stmt->fetchAll(PDO::FETCH_COLUMN) ?: []) : [];
@@ -446,6 +460,10 @@ class ArchiveController {
         if ($driver === 'mysql') {
             $stmt = $db->query("SHOW TABLES LIKE " . $db->quote($tbl));
             return (bool)($stmt && $stmt->fetchColumn());
+        } else if ($driver === 'pgsql') {
+            $stmt = $db->prepare("SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ?");
+            $stmt->execute([strtolower($tbl)]);
+            return (bool)$stmt->fetchColumn();
         } else {
             $stmt = $db->prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?");
             $stmt->execute([$tbl]);
@@ -460,8 +478,10 @@ class ArchiveController {
         $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
         if ($driver === 'sqlite') {
             $db->exec('PRAGMA foreign_keys = OFF');
-        } else {
+        } else if ($driver === 'mysql') {
             $db->exec('SET FOREIGN_KEY_CHECKS = 0');
+        } else if ($driver === 'pgsql') {
+            try { $db->exec("SET session_replication_role = 'replica'"); } catch (Throwable $e) {}
         }
     }
 
@@ -472,8 +492,10 @@ class ArchiveController {
         $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
         if ($driver === 'sqlite') {
             $db->exec('PRAGMA foreign_keys = ON');
-        } else {
+        } else if ($driver === 'mysql') {
             $db->exec('SET FOREIGN_KEY_CHECKS = 1');
+        } else if ($driver === 'pgsql') {
+            try { $db->exec("SET session_replication_role = 'origin'"); } catch (Throwable $e) {}
         }
     }
 
