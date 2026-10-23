@@ -52,7 +52,7 @@ class ArchiveController {
                     ];
                     foreach ($tableList as $tbl) {
                         try {
-                            $stmt = $db->query("SELECT * FROM `{$tbl}`");
+                            $stmt = $db->query("SELECT * FROM {$tbl}");
                             $exportTables[$tbl] = $stmt ? $stmt->fetchAll() : [];
                         } catch (Exception $e) {}
                     }
@@ -185,7 +185,7 @@ class ArchiveController {
                         foreach ($deleteOrder as $dtbl) {
                             if (isset($tables[$dtbl])) {
                                 if (in_array(strtolower($dtbl), $existingTables)) {
-                                    $db->exec("DELETE FROM `{$dtbl}`");
+                                    $db->exec("DELETE FROM {$dtbl}");
                                 }
                             }
                         }
@@ -349,7 +349,7 @@ class ArchiveController {
                         $existingTables = array_map('strtolower', self::getExistingTables($db));
                         foreach ($tablesToClear as $tbl) {
                             if (in_array(strtolower($tbl), $existingTables)) {
-                                $db->exec("DELETE FROM `{$tbl}`");
+                                $db->exec("DELETE FROM {$tbl}");
                             }
                         }
 
@@ -395,7 +395,7 @@ class ArchiveController {
                         $existingTables = array_map('strtolower', self::getExistingTables($db));
                         foreach ($allTables as $tbl) {
                             if (in_array(strtolower($tbl), $existingTables)) {
-                                $db->exec("DELETE FROM `{$tbl}`");
+                                $db->exec("DELETE FROM {$tbl}");
                             }
                         }
 
@@ -525,7 +525,7 @@ class ArchiveController {
                 $tableList = ['companies', 'users', 'items', 'customers', 'bills', 'cashbook', 'cylinder_stock'];
                 foreach ($tableList as $t) {
                     try {
-                        $stmt = $db->query("SELECT * FROM `{$t}`");
+                        $stmt = $db->query("SELECT * FROM {$t}");
                         $exportTables[$t] = $stmt ? $stmt->fetchAll() : [];
                     } catch (Exception $e) {}
                 }

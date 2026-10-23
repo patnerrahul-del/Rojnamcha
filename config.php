@@ -18,12 +18,6 @@ define('APP_NAME', 'Shiv Shakti HP Gas ERP');
 define('APP_VERSION', '1.0.0');
 define('APP_ENV', 'production'); // 'development' or 'production'
 
-// Session & Security Constants
-define('SESSION_LIFETIME_HOURS', 12);
-define('MAX_FAILED_LOGIN_ATTEMPTS', 5);
-define('LOGIN_LOCKOUT_MINUTES', 10);
-define('JWT_SECRET_KEY', 'SS-HP-GAS-PANDAUL-SECURE-KEY-2026-ENCRYPTION-SALT');
-
 // Environment & Serverless Helper
 function get_env_var(string $key): ?string {
     $val = getenv($key);
@@ -40,6 +34,12 @@ function get_env_var(string $key): ?string {
 }
 
 $isServerless = (!empty(get_env_var('VERCEL')) || !empty(get_env_var('AWS_LAMBDA_FUNCTION_NAME')) || !empty($_SERVER['VERCEL']));
+
+// Session & Security Constants (Default 72 hours / 3 days to prevent premature logouts)
+define('SESSION_LIFETIME_HOURS', (int)(get_env_var('SESSION_LIFETIME_HOURS') ?: 72));
+define('MAX_FAILED_LOGIN_ATTEMPTS', 5);
+define('LOGIN_LOCKOUT_MINUTES', 10);
+define('JWT_SECRET_KEY', 'SS-HP-GAS-PANDAUL-SECURE-KEY-2026-ENCRYPTION-SALT');
 
 // Database Configuration
 // Priority 1: Supabase / Cloud Database URL (DATABASE_URL, POSTGRES_URL, or SUPABASE_DB_URL)
