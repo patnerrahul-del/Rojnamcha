@@ -58,10 +58,11 @@ export const ui = {
   },
 
   async confirm(message, title = 'Confirm Action', confirmBtnText = 'Yes, Proceed') {
+    const isHtml = typeof message === 'string' && /<[a-z][\s\S]*>/i.test(message);
     const res = await Swal.fire({
       title,
-      text: message,
-      icon: 'question',
+      [isHtml ? 'html' : 'text']: message,
+      icon: isHtml ? undefined : 'question',
       showCancelButton: true,
       confirmButtonColor: '#001f3f',
       cancelButtonColor: '#64748b',

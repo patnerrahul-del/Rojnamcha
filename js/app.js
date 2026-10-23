@@ -340,31 +340,68 @@ async function initWorkingDateWidget() {
   const handleActionClick = async () => {
     const curDate = utils.today();
     const realDate = utils.realToday();
+    const yesterdayDate = new Date(Date.now() - 86400000).toISOString().split('T')[0];
 
-    const confirmed = await ui.confirm(
-      `<div style="text-align:left; font-size:13px; line-height:1.6;">
-        <p>Current Active System Date: <strong>${utils.formatDate(curDate)}</strong> (${curDate})</p>
-        <p style="color:var(--text-muted); margin-bottom:12px;">Choose an action to change the system-wide active working date across all billing, stock, and registers:</p>
-        <div style="display:flex; flex-direction:column; gap:8px;">
-          <button type="button" id="modal-btn-open-today" class="btn btn-outline btn-sm" style="text-align:left; justify-content:flex-start;">
-            <i class="fa-solid fa-calendar-day" style="color:#10b981; margin-right:8px;"></i> <strong>Switch to Today (${utils.formatDate(realDate)})</strong>
+    const htmlContent = `
+      <div style="text-align:left; font-size:13px; line-height:1.6;">
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-bottom:14px;">
+          <div style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700;">Currently Active System Date:</div>
+          <div style="font-size:16px; font-weight:800; color:#001f3f; margin-top:2px;">
+            📅 ${utils.formatDate(curDate)} <span style="font-size:12px; font-weight:600; color:#64748b;">(${curDate})</span>
+          </div>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label style="font-size:12.5px; font-weight:700; color:#1e293b; display:block; margin-bottom:6px;">
+            Select / Pick New Working Date:
+          </label>
+          <input type="date" id="swal-pick-date" class="form-control" value="${curDate}" style="width:100%; height:40px; font-size:14px; font-family:'JetBrains Mono', monospace; font-weight:700;">
+        </div>
+
+        <div style="font-size:11.5px; color:#64748b; font-weight:700; text-transform:uppercase; margin-bottom:6px;">Quick Presets:</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <button type="button" id="swal-btn-today" class="btn btn-outline btn-sm" style="font-size:12px; font-weight:700; padding:8px;">
+            <i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Today (${utils.formatDate(realDate)})
           </button>
-          <button type="button" id="modal-btn-open-yesterday" class="btn btn-outline btn-sm" style="text-align:left; justify-content:flex-start;">
-            <i class="fa-solid fa-clock-rotate-left" style="color:#f59e0b; margin-right:8px;"></i> <strong>Open Yesterday (${utils.formatDate(new Date(Date.now() - 86400000).toISOString().split('T')[0])})</strong>
+          <button type="button" id="swal-btn-yesterday" class="btn btn-outline btn-sm" style="font-size:12px; font-weight:700; padding:8px;">
+            <i class="fa-solid fa-clock-rotate-left" style="color:#f59e0b;"></i> Yesterday (${utils.formatDate(yesterdayDate)})
           </button>
         </div>
-      </div>`,
-      'Active Business Working Date',
-      'Select Custom Date'
-    );
+      </div>
+    `;
 
-    if (confirmed) {
-      const customDate = await ui.prompt('Enter or pick Date (YYYY-MM-DD):', curDate, 'Set Business Working Date');
-      if (customDate && /^\d{4}-\d{2}-\d{2}$/.test(customDate)) {
-        await setGlobalWorkingDate(customDate);
+    Swal.fire({
+      title: 'Active Business Working Date',
+      html: htmlContent,
+      showCancelButton: true,
+      confirmButtonColor: '#001f3f',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: '<i class="fa-solid fa-floppy-disk"></i> Apply Active Date',
+      cancelButtonText: 'Cancel',
+      customClass: { popup: 'cool-swal-popup' },
+      didOpen: () => {
+        const inp = document.getElementById('swal-pick-date');
+        document.getElementById('swal-btn-today')?.addEventListener('click', () => {
+          if (inp) inp.value = realDate;
+        });
+        document.getElementById('swal-btn-yesterday')?.addEventListener('click', () => {
+          if (inp) inp.value = yesterdayDate;
+        });
+      },
+      preConfirm: () => {
+        const picked = document.getElementById('swal-pick-date')?.value;
+        if (!picked || !/^\d{4}-\d{2}-\d{2}$/.test(picked)) {
+          Swal.showValidationMessage('Please choose a valid date (YYYY-MM-DD)');
+          return false;
+        }
+        return picked;
+      }
+    }).then(async (result) => {
+      if (result.isConfirmed && result.value) {
+        await setGlobalWorkingDate(result.value);
         await updateUI();
       }
-    }
+    });
   };
 
   actionBtn?.addEventListener('click', handleActionClick);
