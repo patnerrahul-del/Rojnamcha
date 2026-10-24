@@ -103,6 +103,7 @@ try {
 
         case 'getMeta':
             $db = Database::getConnection();
+            $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
             $comp = $db->query("SELECT * FROM companies LIMIT 1")->fetch();
             $response = [
                 'ok' => true,
@@ -111,7 +112,8 @@ try {
                     'version' => APP_VERSION,
                     'company' => $comp,
                     'currency' => CURRENCY_SYMBOL,
-                    'timezone' => date_default_timezone_get()
+                    'timezone' => date_default_timezone_get(),
+                    'driver' => $driver
                 ]
             ];
             break;
@@ -265,6 +267,11 @@ try {
         case 'getReport':
         case 'getRojnamcha':
         case 'getReconciliation':
+        case 'daily_sales':
+        case 'payment_modes':
+        case 'item_sales':
+        case 'customer_statement':
+        case 'cancelled_bills':
             $response = ReportController::handle($action, $payload, $currentUser);
             break;
 
@@ -287,6 +294,8 @@ try {
         // Settings
         case 'getSettings':
         case 'saveSettings':
+        case 'getWorkingDate':
+        case 'setWorkingDate':
             $response = SettingsController::handle($action, $payload, $currentUser);
             break;
 

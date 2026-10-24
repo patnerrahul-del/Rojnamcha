@@ -101,15 +101,17 @@ class Auth {
         }
 
         // Login Succeeded: Reset attempts & generate secure session
-        $token = bin2hex(random_bytes(32));
+        $token = self::generateJwt($user);
         $expiresAt = date('Y-m-d H:i:s', time() + (SESSION_LIFETIME_HOURS * 3600));
 
-        $update = $db->prepare("UPDATE users SET FailedAttempts = 0, LockUntil = NULL, LastLoginAt = ? WHERE UserID = ?");
-        $update->execute([$now, $user['UserID']]);
+        try {
+            $update = $db->prepare("UPDATE users SET FailedAttempts = 0, LockUntil = NULL, LastLoginAt = ? WHERE UserID = ?");
+            $update->execute([$now, $user['UserID']]);
 
-        // Insert Session
-        $sessStmt = $db->prepare("INSERT INTO sessions (Token, UserID, ExpiresAt, IPAddress, UserAgent, CreatedAt) VALUES (?, ?, ?, ?, ?, ?)");
-        $sessStmt->execute([$token, $user['UserID'], $expiresAt, $ip, $userAgent, $now]);
+            // Insert Session for audit and tracking
+            $sessStmt = $db->prepare("INSERT INTO sessions (Token, UserID, ExpiresAt, IPAddress, UserAgent, CreatedAt) VALUES (?, ?, ?, ?, ?, ?)");
+            $sessStmt->execute([$token, $user['UserID'], $expiresAt, $ip, $userAgent, $now]);
+        } catch (Throwable $e) {}
 
         Audit::log($user['UserID'], $user['Username'], 'LOGIN', 'auth', (string)$user['UserID'], null, null, 'User logged in successfully');
 
@@ -129,33 +131,105 @@ class Auth {
     }
 
     /**
+     * Generate HMAC-SHA256 Signed Stateless JWT Token
+     * Eliminates session drops across stateless serverless lambdas
+     */
+    public static function generateJwt(array $user): string {
+        $lifetime = defined('SESSION_LIFETIME_HOURS') ? SESSION_LIFETIME_HOURS : 72;
+        $expiresAt = time() + ($lifetime * 3600);
+        $payload = [
+            'sub' => (int)($user['UserID'] ?? $user['userId']),
+            'usr' => $user['Username'] ?? $user['username'],
+            'nam' => $user['FullName'] ?? $user['fullName'],
+            'rol' => $user['Role'] ?? $user['role'],
+            'eml' => $user['Email'] ?? ($user['email'] ?? ''),
+            'mob' => $user['Mobile'] ?? ($user['mobile'] ?? ''),
+            'fpc' => (int)($user['ForcePasswordChange'] ?? ($user['forcePasswordChange'] ?? 0)),
+            'exp' => $expiresAt,
+            'iat' => time()
+        ];
+        $json = json_encode($payload, JSON_UNESCAPED_SLASHES);
+        $b64 = rtrim(strtr(base64_encode($json), '+/', '-_'), '=');
+        $secret = defined('JWT_SECRET_KEY') ? JWT_SECRET_KEY : 'SS-HP-GAS-PANDAUL-SECURE-KEY-2026-ENCRYPTION-SALT';
+        $sig = hash_hmac('sha256', $b64, $secret);
+        return "{$b64}.{$sig}";
+    }
+
+    /**
+     * Verify HMAC-SHA256 Signed Stateless JWT Token
+     */
+    public static function verifyJwt(string $token): ?array {
+        $parts = explode('.', $token);
+        if (count($parts) !== 2) return null;
+        [$b64, $sig] = $parts;
+
+        $secret = defined('JWT_SECRET_KEY') ? JWT_SECRET_KEY : 'SS-HP-GAS-PANDAUL-SECURE-KEY-2026-ENCRYPTION-SALT';
+        $expectedSig = hash_hmac('sha256', $b64, $secret);
+        if (!hash_equals($expectedSig, $sig)) {
+            return null;
+        }
+
+        $json = base64_decode(strtr($b64, '-_', '+/'));
+        if (!$json) return null;
+
+        $data = json_decode($json, true);
+        if (!is_array($data) || empty($data['sub'])) return null;
+
+        if (isset($data['exp']) && $data['exp'] < time()) {
+            return null;
+        }
+
+        return [
+            'userId' => (int)$data['sub'],
+            'username' => $data['usr'] ?? '',
+            'fullName' => $data['nam'] ?? '',
+            'role' => $data['rol'] ?? 'VIEWER',
+            'email' => $data['eml'] ?? '',
+            'mobile' => $data['mob'] ?? '',
+            'forcePasswordChange' => !empty($data['fpc']),
+            'token' => $token
+        ];
+    }
+
+    /**
      * Validate Session Token and return User
      */
     public static function validateToken(string $token): ?array {
         if (empty($token)) return null;
 
-        $db = Database::getConnection();
-        $now = date('Y-m-d H:i:s');
+        // 1. High-Performance Stateless JWT Verification (Immune to multi-container drops)
+        $jwtUser = self::verifyJwt($token);
+        if ($jwtUser !== null) {
+            return $jwtUser;
+        }
 
-        $stmt = $db->prepare("SELECT s.*, u.Username, u.FullName, u.Role, u.Email, u.Mobile, u.Status, u.ForcePasswordChange 
-            FROM sessions s 
-            JOIN users u ON s.UserID = u.UserID 
-            WHERE s.Token = ? AND s.ExpiresAt > ? AND u.IsDeleted = 0 AND u.Status = 'ACTIVE'");
-        $stmt->execute([$token, $now]);
-        $session = $stmt->fetch();
+        // 2. Fallback to sessions table query for legacy tokens
+        try {
+            $db = Database::getConnection();
+            $now = date('Y-m-d H:i:s');
 
-        if (!$session) return null;
+            $stmt = $db->prepare("SELECT s.*, u.Username, u.FullName, u.Role, u.Email, u.Mobile, u.Status, u.ForcePasswordChange 
+                FROM sessions s 
+                JOIN users u ON s.UserID = u.UserID 
+                WHERE s.Token = ? AND s.ExpiresAt > ? AND u.IsDeleted = 0 AND u.Status = 'ACTIVE'");
+            $stmt->execute([$token, $now]);
+            $session = $stmt->fetch();
 
-        return [
-            'userId' => (int)$session['UserID'],
-            'username' => $session['Username'],
-            'fullName' => $session['FullName'],
-            'role' => $session['Role'],
-            'email' => $session['Email'],
-            'mobile' => $session['Mobile'],
-            'forcePasswordChange' => (int)$session['ForcePasswordChange'] === 1,
-            'token' => $token
-        ];
+            if ($session) {
+                return [
+                    'userId' => (int)$session['UserID'],
+                    'username' => $session['Username'],
+                    'fullName' => $session['FullName'],
+                    'role' => $session['Role'],
+                    'email' => $session['Email'],
+                    'mobile' => $session['Mobile'],
+                    'forcePasswordChange' => (int)$session['ForcePasswordChange'] === 1,
+                    'token' => $token
+                ];
+            }
+        } catch (Throwable $e) {}
+
+        return null;
     }
 
     /**
