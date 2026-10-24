@@ -48,8 +48,8 @@ require_once __DIR__ . '/controllers/SettingsController.php';
 require_once __DIR__ . '/controllers/AuditController.php';
 
 try {
-    // Ensure database and schema are initialized
-    Database::setupDatabase();
+    // Ensure database and schema are initialized (fast check, skips heavy DDL if already initialized)
+    Database::ensureSchemaReady();
 
     // Read Input JSON or POST Body
     $rawInput = file_get_contents('php://input');

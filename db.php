@@ -205,6 +205,22 @@ class Database {
     }
 
     /**
+     * Fast Schema Check: Skips running heavy DDL on every request if schema already exists.
+     */
+    public static function ensureSchemaReady(): void {
+        $db = self::getConnection();
+        try {
+            $check = $db->query("SELECT 1 FROM users LIMIT 1");
+            if ($check !== false) {
+                return;
+            }
+        } catch (Throwable $e) {
+            // users table does not exist, proceed to run full setup
+        }
+        self::setupDatabase();
+    }
+
+    /**
      * Idempotent Database Setup
      * Creates all required tables, indices, and initial production seed data
      */
