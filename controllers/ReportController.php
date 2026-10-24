@@ -60,7 +60,7 @@ class ReportController {
                         FROM bill_items bi 
                         JOIN bills b ON bi.BillID = b.BillID 
                         WHERE b.BillDate BETWEEN ? AND ? AND b.IsCancelled = 0 AND b.IsDeleted = 0 
-                        GROUP BY bi.ItemID, bi.ItemName ORDER BY TotalRevenue DESC");
+                        GROUP BY bi.ItemID, bi.ItemName, bi.Category, bi.CylinderType ORDER BY TotalRevenue DESC");
                         $stmt->execute([$startDate, $endDate]);
                         return ['ok' => true, 'data' => $stmt->fetchAll()];
 
@@ -197,8 +197,8 @@ class ReportController {
                 FROM bill_items bi 
                 JOIN bills b ON bi.BillID = b.BillID 
                 WHERE b.BillDate BETWEEN ? AND ? AND b.IsCancelled = 0 AND b.IsDeleted = 0 
-                GROUP BY bi.ItemName, bi.Rate
-                ORDER BY bi.Category ASC, bi.Total DESC");
+                GROUP BY bi.ItemName, bi.Category, bi.CylinderType, bi.Rate
+                ORDER BY bi.Category ASC, TotalAmount DESC");
                 $itemsStmt->execute([$startDate, $endDate]);
                 $itemSales = $itemsStmt->fetchAll();
 

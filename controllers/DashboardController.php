@@ -142,7 +142,7 @@ class DashboardController {
                     FROM hawker_dispatch hd 
                     JOIN employees e ON hd.EmpID = e.EmpID 
                     WHERE hd.Date BETWEEN ? AND ? 
-                    GROUP BY hd.EmpID ORDER BY TotalSold DESC LIMIT 5");
+                    GROUP BY hd.EmpID, e.Name ORDER BY TotalSold DESC LIMIT 5");
                 $hawkers->execute([$startDate, $endDate]);
                 $topHawkers = $hawkers->fetchAll();
 

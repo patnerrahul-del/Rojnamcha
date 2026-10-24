@@ -281,7 +281,7 @@ class DispatchController {
                 FROM employees e 
                 JOIN hawker_dispatch hd ON e.EmpID = hd.EmpID 
                 WHERE hd.Date BETWEEN ? AND ? 
-                GROUP BY e.EmpID ORDER BY TotalSold DESC");
+                GROUP BY e.EmpID, e.Name, e.Mobile ORDER BY TotalSold DESC");
                 $stmt->execute([$startDate, $endDate]);
                 $perf = $stmt->fetchAll();
 
