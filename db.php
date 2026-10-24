@@ -1104,14 +1104,23 @@ class Database {
             ]);
         }
 
-        // 5. Seed Default Item Rates
+        // 5. Seed Official Agency Item Rates & Gas Catalog
         $items = [
-            ['CYL-142', '14.2 KG Domestic Refill', 'SALE', '14.2 KG Domestic', 925.50, 92550, 5.0, 'Standard domestic subsidized refill', 0],
-            ['CYL-190', '19 KG Commercial Refill', 'SALE', '19 KG Commercial', 1880.00, 188000, 18.0, 'Commercial blue cylinder refill', 0],
-            ['CYL-050C', '5 KG Commercial Refill', 'SALE', '5 KG Commercial', 520.00, 52000, 18.0, '5 KG commercial cylinder refill', 0],
-            ['CYL-050D', '5 KG Domestic FTL Refill', 'SALE', '5 KG Domestic', 370.00, 37000, 5.0, '5 KG domestic free trade LPG refill', 0],
-            ['CYL-020C', '2 KG Chotu Refill', 'SALE', '2 KG Commercial', 210.00, 21000, 18.0, '2 KG portable refill', 0],
-            ['SD-CYL', 'Cylinder Security Deposit', 'SECURITY_DEPOSIT', '14.2 KG Domestic', 2200.00, 220000, 0.0, 'Refundable cylinder security deposit', 1],
+            // Domestic
+            ['CYL-142', '14.2 KG Domestic LPG', 'SALE', '14.2 KG Domestic', 1042.00, 104200, 5.0, '14.2 KG Domestic LPG (₹73.38/KG)', 0],
+            
+            // Commercial Refills (RFL) & FTL
+            ['CYL-190', '19 KG Commercial Refill (RFL)', 'SALE', '19 KG Commercial', 3120.00, 312000, 18.0, '19 KG RFL (₹164.21/KG)', 0],
+            ['SD-CYL190', '19 KG Security Money Deposit', 'SECURITY_DEPOSIT', '19 KG Commercial', 2400.00, 240000, 0.0, '19 KG Security Money Deposit', 0],
+            ['CYL-050C', '5 KG Commercial Refill (RFL)', 'SALE', '5 KG Commercial', 862.50, 86250, 18.0, '5 KG RFL (₹172.50/KG)', 0],
+            ['CYL-050-FTL', '5 KG FTL Commercial', 'SALE', '5 KG Commercial', 1983.50, 198350, 18.0, '5 KG FTL (₹396.70/KG)', 0],
+            ['CYL-020C', '2 KG Chotu Refill (RFL)', 'SALE', '2 KG Commercial', 390.00, 39000, 18.0, '2 KG RFL (₹195.00/KG)', 0],
+            ['CYL-020-FTL', '2 KG FTL Commercial', 'SALE', '2 KG Commercial', 1020.00, 102000, 18.0, '2 KG FTL (₹510.00/KG)', 0],
+            ['CYL-010-FTL', '10 KG HP Navya FTL', 'SALE', '10 KG Composite', 5018.00, 501800, 18.0, '10 KG HP Navya Composite FTL (₹501.80/KG)', 0],
+            ['CYL-010-RFL', '10 KG HP Navya Refill (RFL)', 'SALE', '10 KG Composite', 1832.00, 183200, 18.0, '10 KG HP Navya Composite RFL (₹183.20/KG)', 0],
+
+            // Domestic Connection Deposits & Standard Accessories
+            ['SD-CYL', '14.2 KG Cylinder Security Deposit', 'SECURITY_DEPOSIT', '14.2 KG Domestic', 2200.00, 220000, 0.0, 'Refundable 14.2 KG cylinder security deposit', 1],
             ['SD-REG', 'DPR Regulator Security Deposit', 'SECURITY_DEPOSIT', NULL, 250.00, 25000, 0.0, 'Refundable regulator security deposit', 1],
             ['HOSE-15', 'Suraksha LPG Hose 1.5M', 'SALE', NULL, 190.00, 19000, 18.0, 'ISI certified steel braided safety hose', 1],
             ['STOVE-2B', 'Domestic LPG Stove 2-Burner', 'SALE', NULL, 1450.00, 145000, 18.0, 'ISI 2-Burner stainless steel cooktop', 1],
@@ -1121,14 +1130,21 @@ class Database {
         ];
 
         foreach ($items as $it) {
-            $check = $db->prepare("SELECT COUNT(*) FROM item_rates WHERE ItemCode = ?");
+            $check = $db->prepare("SELECT ItemID FROM item_rates WHERE ItemCode = ?");
             $check->execute([$it[0]]);
-            if ((int)$check->fetchColumn() === 0) {
+            $existingId = $check->fetchColumn();
+            if (!$existingId) {
                 $ins = $db->prepare("INSERT INTO item_rates (
                     ItemCode, ItemName, Category, CylinderType, Rate, RatePaise, TaxPercent,
                     Description, IsPackageItem, Status, CreatedAt, UpdatedAt
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?)");
                 $ins->execute([$it[0], $it[1], $it[2], $it[3], $it[4], $it[5], $it[6], $it[7], $it[8], $now, $now]);
+            } else {
+                // Update to official rates in case seed values were revised
+                $upd = $db->prepare("UPDATE item_rates SET 
+                    ItemName = ?, Category = ?, CylinderType = ?, Rate = ?, RatePaise = ?, TaxPercent = ?, Description = ?, UpdatedAt = ?
+                    WHERE ItemCode = ?");
+                $upd->execute([$it[1], $it[2], $it[3], $it[4], $it[5], $it[6], $it[7], $now, $it[0]]);
             }
         }
 
