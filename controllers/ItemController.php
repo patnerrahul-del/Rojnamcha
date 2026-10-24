@@ -199,6 +199,11 @@ class ItemController {
                 $stmt->execute($params);
                 return ['ok' => true, 'data' => $stmt->fetchAll()];
 
+            case 'getCategories':
+                $stmt = $db->query("SELECT DISTINCT Category FROM item_rates WHERE Category IS NOT NULL AND Category != '' ORDER BY Category ASC");
+                $cats = $stmt ? ($stmt->fetchAll(PDO::FETCH_COLUMN) ?: []) : [];
+                return ['ok' => true, 'data' => $cats];
+
             default:
                 return ['ok' => false, 'error' => ['code' => 'NOT_FOUND', 'message' => 'Invalid items action.']];
         }

@@ -1106,27 +1106,27 @@ class Database {
 
         // 5. Seed Official Agency Item Rates & Gas Catalog
         $items = [
-            // Domestic
-            ['CYL-142', '14.2 KG Domestic LPG', 'SALE', '14.2 KG Domestic', 1042.00, 104200, 5.0, '14.2 KG Domestic LPG (₹73.38/KG)', 0],
+            // Domestic LPG
+            ['CYL-142', '14.2 KG Domestic LPG', 'DOMESTIC', '14.2 KG Domestic', 1042.00, 104200, 5.0, '14.2 KG Domestic LPG (₹73.38/KG)', 0],
             
-            // Commercial Refills (RFL) & FTL
-            ['CYL-190', '19 KG Commercial Refill (RFL)', 'SALE', '19 KG Commercial', 3120.00, 312000, 18.0, '19 KG RFL (₹164.21/KG)', 0],
-            ['SD-CYL190', '19 KG Security Money Deposit', 'SECURITY_DEPOSIT', '19 KG Commercial', 2400.00, 240000, 0.0, '19 KG Security Money Deposit', 0],
-            ['CYL-050C', '5 KG Commercial Refill (RFL)', 'SALE', '5 KG Commercial', 862.50, 86250, 18.0, '5 KG RFL (₹172.50/KG)', 0],
-            ['CYL-050-FTL', '5 KG FTL Commercial', 'SALE', '5 KG Commercial', 1983.50, 198350, 18.0, '5 KG FTL (₹396.70/KG)', 0],
-            ['CYL-020C', '2 KG Chotu Refill (RFL)', 'SALE', '2 KG Commercial', 390.00, 39000, 18.0, '2 KG RFL (₹195.00/KG)', 0],
-            ['CYL-020-FTL', '2 KG FTL Commercial', 'SALE', '2 KG Commercial', 1020.00, 102000, 18.0, '2 KG FTL (₹510.00/KG)', 0],
-            ['CYL-010-FTL', '10 KG HP Navya FTL', 'SALE', '10 KG Composite', 5018.00, 501800, 18.0, '10 KG HP Navya Composite FTL (₹501.80/KG)', 0],
-            ['CYL-010-RFL', '10 KG HP Navya Refill (RFL)', 'SALE', '10 KG Composite', 1832.00, 183200, 18.0, '10 KG HP Navya Composite RFL (₹183.20/KG)', 0],
+            // Commercial LPG Refills (RFL) & FTL
+            ['CYL-190', '19 KG Commercial Refill (RFL)', 'COMMERCIAL', '19 KG Commercial', 3120.00, 312000, 18.0, '19 KG RFL (₹164.21/KG)', 0],
+            ['SD-CYL190', '19 KG Security Money Deposit', 'SECURITY DEPOSIT', '19 KG Commercial', 2400.00, 240000, 0.0, '19 KG Security Money Deposit', 0],
+            ['CYL-050C', '5 KG Commercial Refill (RFL)', 'COMMERCIAL', '5 KG Commercial', 862.50, 86250, 18.0, '5 KG RFL (₹172.50/KG)', 0],
+            ['CYL-050-FTL', '5 KG FTL Commercial', 'COMMERCIAL', '5 KG Commercial', 1983.50, 198350, 18.0, '5 KG FTL (₹396.70/KG)', 0],
+            ['CYL-020C', '2 KG Chotu Refill (RFL)', 'COMMERCIAL', '2 KG Commercial', 390.00, 39000, 18.0, '2 KG RFL (₹195.00/KG)', 0],
+            ['CYL-020-FTL', '2 KG FTL Commercial', 'COMMERCIAL', '2 KG Commercial', 1020.00, 102000, 18.0, '2 KG FTL (₹510.00/KG)', 0],
+            ['CYL-010-FTL', '10 KG HP Navya FTL', 'COMMERCIAL', '10 KG Composite', 5018.00, 501800, 18.0, '10 KG HP Navya Composite FTL (₹501.80/KG)', 0],
+            ['CYL-010-RFL', '10 KG HP Navya Refill (RFL)', 'COMMERCIAL', '10 KG Composite', 1832.00, 183200, 18.0, '10 KG HP Navya Composite RFL (₹183.20/KG)', 0],
 
-            // Domestic Connection Deposits & Standard Accessories
-            ['SD-CYL', '14.2 KG Cylinder Security Deposit', 'SECURITY_DEPOSIT', '14.2 KG Domestic', 2200.00, 220000, 0.0, 'Refundable 14.2 KG cylinder security deposit', 1],
-            ['SD-REG', 'DPR Regulator Security Deposit', 'SECURITY_DEPOSIT', NULL, 250.00, 25000, 0.0, 'Refundable regulator security deposit', 1],
-            ['HOSE-15', 'Suraksha LPG Hose 1.5M', 'SALE', NULL, 190.00, 19000, 18.0, 'ISI certified steel braided safety hose', 1],
-            ['STOVE-2B', 'Domestic LPG Stove 2-Burner', 'SALE', NULL, 1450.00, 145000, 18.0, 'ISI 2-Burner stainless steel cooktop', 1],
-            ['FEE-PASS', 'Blue Book / Passbook Fee', 'SERVICE', NULL, 50.00, 5000, 0.0, 'Consumer booklet & documentation', 1],
-            ['FEE-ADMIN', 'New Connection Admin & DGCC Charge', 'SERVICE', NULL, 118.00, 11800, 18.0, 'Installation inspection & registration', 1],
-            ['SRV-INSP', 'Mandatory 5-Yr Safety Inspection', 'SERVICE', NULL, 236.00, 23600, 18.0, 'Mandatory domestic checkup service', 0]
+            // Appliances, Accessories, Service Charges & Deposits
+            ['STOVE-2B', 'Domestic LPG Stove 2-Burner', 'Appliances', NULL, 1450.00, 145000, 18.0, 'ISI 2-Burner stainless steel cooktop', 1],
+            ['HOSE-15', 'Suraksha LPG Hose 1.5M', 'Accessories', NULL, 190.00, 19000, 18.0, 'ISI certified steel braided safety hose', 1],
+            ['SD-CYL', '14.2 KG Cylinder Security Deposit', 'SECURITY DEPOSIT', '14.2 KG Domestic', 2200.00, 220000, 0.0, 'Refundable 14.2 KG cylinder security deposit', 1],
+            ['SD-REG', 'DPR Regulator Security Deposit', 'SECURITY DEPOSIT', NULL, 250.00, 25000, 0.0, 'Refundable regulator security deposit', 1],
+            ['FEE-PASS', 'Blue Book / Passbook Fee', 'SERVICE CHARGE', NULL, 50.00, 5000, 0.0, 'Consumer booklet & documentation', 1],
+            ['FEE-ADMIN', 'New Connection Admin & DGCC Charge', 'SERVICE CHARGE', NULL, 118.00, 11800, 18.0, 'Installation inspection & registration', 1],
+            ['SRV-INSP', 'Mandatory 5-Yr Safety Inspection', 'SERVICE CHARGE', NULL, 236.00, 23600, 18.0, 'Mandatory domestic checkup service', 0]
         ];
 
         foreach ($items as $it) {

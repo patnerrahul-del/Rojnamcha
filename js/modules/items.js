@@ -38,12 +38,14 @@ export const itemsModule = {
       <div class="card" style="margin-bottom:16px; padding:14px 20px;">
         <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
           <input type="text" id="item-search-input" class="form-control" placeholder="Search item code or name..." style="flex:1; min-width:240px;">
-          <select id="item-category-filter" class="form-select" style="width:180px;">
+          <select id="item-category-filter" class="form-select" style="min-width:190px;">
             <option value="all">All Categories</option>
-            <option value="SALE">SALE (Refills)</option>
-            <option value="SECURITY_DEPOSIT">SECURITY DEPOSIT</option>
-            <option value="SERVICE">SERVICE / CHARGES</option>
-            <option value="ACCESSORY">ACCESSORY / APPLIANCE</option>
+            <option value="DOMESTIC">DOMESTIC (Domestic LPG)</option>
+            <option value="COMMERCIAL">COMMERCIAL (Commercial LPG)</option>
+            <option value="Appliances">Appliances (Stoves / Cooktops)</option>
+            <option value="Accessories">Accessories (Suraksha Hose / Regulators)</option>
+            <option value="SERVICE CHARGE">SERVICE CHARGE (Inspection, DGCC)</option>
+            <option value="SECURITY DEPOSIT">SECURITY DEPOSIT (Deposits)</option>
           </select>
           <select id="item-status-filter" class="form-select" style="width:130px;">
             <option value="active" selected>Active</option>
@@ -79,6 +81,53 @@ export const itemsModule = {
     `;
 
     this.bindEvents();
+    this.populateCategoryFilter();
+  },
+
+  getCategoryBadge(cat) {
+    if (!cat) return '<span class="badge" style="background:#64748b; color:#fff;">-</span>';
+    const c = String(cat).toUpperCase();
+    if (c === 'DOMESTIC') {
+      return `<span class="badge" style="background:#16a34a; color:#fff; font-weight:600;"><i class="fa-solid fa-house" style="margin-right:4px;"></i>DOMESTIC</span>`;
+    } else if (c === 'COMMERCIAL') {
+      return `<span class="badge" style="background:#2563eb; color:#fff; font-weight:600;"><i class="fa-solid fa-building" style="margin-right:4px;"></i>COMMERCIAL</span>`;
+    } else if (c === 'APPLIANCES') {
+      return `<span class="badge" style="background:#ea580c; color:#fff; font-weight:600;"><i class="fa-solid fa-fire-burner" style="margin-right:4px;"></i>Appliances</span>`;
+    } else if (c === 'ACCESSORIES') {
+      return `<span class="badge" style="background:#7c3aed; color:#fff; font-weight:600;"><i class="fa-solid fa-screwdriver-wrench" style="margin-right:4px;"></i>Accessories</span>`;
+    } else if (c === 'SERVICE CHARGE' || c === 'SERVICE') {
+      return `<span class="badge" style="background:#0891b2; color:#fff; font-weight:600;"><i class="fa-solid fa-clipboard-check" style="margin-right:4px;"></i>SERVICE CHARGE</span>`;
+    } else if (c === 'SECURITY DEPOSIT' || c === 'SECURITY_DEPOSIT') {
+      return `<span class="badge" style="background:#d97706; color:#fff; font-weight:600;"><i class="fa-solid fa-shield-halved" style="margin-right:4px;"></i>SECURITY DEPOSIT</span>`;
+    } else {
+      return `<span class="badge" style="background:#475569; color:#fff; font-weight:600;"><i class="fa-solid fa-tag" style="margin-right:4px;"></i>${utils.escapeHtml(cat)}</span>`;
+    }
+  },
+
+  async populateCategoryFilter() {
+    const select = document.getElementById('item-category-filter');
+    if (!select) return;
+    const currentVal = select.value;
+    const standardCats = ['DOMESTIC', 'COMMERCIAL', 'Appliances', 'Accessories', 'SERVICE CHARGE', 'SECURITY DEPOSIT'];
+
+    try {
+      const res = await api('getCategories', {}, { loader: false });
+      if (res.ok && Array.isArray(res.data)) {
+        const customCats = res.data.filter(c => c && !standardCats.some(s => s.toLowerCase() === String(c).toLowerCase()) && c !== 'SALE' && c !== 'SERVICE' && c !== 'SECURITY_DEPOSIT');
+        const existingValues = Array.from(select.options).map(o => o.value);
+        customCats.forEach(c => {
+          if (!existingValues.includes(c)) {
+            const opt = document.createElement('option');
+            opt.value = c;
+            opt.textContent = `${c} (Custom)`;
+            select.appendChild(opt);
+          }
+        });
+        if (currentVal) select.value = currentVal;
+      }
+    } catch (e) {
+      console.warn('Could not populate custom categories:', e);
+    }
   },
 
   bindEvents() {
@@ -110,7 +159,7 @@ export const itemsModule = {
       <tr style="${it.IsDeleted ? 'opacity:0.6;' : ''}">
         <td><strong>${utils.escapeHtml(it.ItemCode)}</strong></td>
         <td><strong>${utils.escapeHtml(it.ItemName)}</strong></td>
-        <td><span class="badge badge-info">${it.Category}</span></td>
+        <td>${this.getCategoryBadge(it.Category)}</td>
         <td>${utils.escapeHtml(it.CylinderType || '-')}</td>
         <td class="text-right num-font" style="font-weight:700; color:var(--primary); font-size:15px;">${utils.formatCurrency(it.Rate)}</td>
         <td class="text-center num-font">${it.TaxPercent}%</td>
@@ -399,6 +448,24 @@ export const itemsModule = {
 
   async openItemModal(item = null) {
     const isEdit = Boolean(item);
+    const standardCats = ['DOMESTIC', 'COMMERCIAL', 'Appliances', 'Accessories', 'SERVICE CHARGE', 'SECURITY DEPOSIT'];
+
+    // Fetch all existing categories to offer in the dropdown
+    let existingCats = [];
+    try {
+      const catRes = await api('getCategories', {}, { loader: false });
+      if (catRes.ok && Array.isArray(catRes.data)) {
+        existingCats = catRes.data;
+      }
+    } catch (e) {}
+
+    const itemCat = item ? (item.Category || 'DOMESTIC') : 'DOMESTIC';
+    const isStandard = standardCats.some(s => s.toLowerCase() === itemCat.toLowerCase());
+    const isKnownCustom = !isStandard && existingCats.includes(itemCat);
+
+    // Other custom categories
+    const otherCustomCats = existingCats.filter(c => c && !standardCats.some(s => s.toLowerCase() === String(c).toLowerCase()) && c !== 'SALE' && c !== 'SERVICE' && c !== 'SECURITY_DEPOSIT');
+
     const html = `
       <div style="display:flex; flex-direction:column; gap:6px; text-align:left;">
         <!-- Section 1: Item Identification -->
@@ -410,31 +477,44 @@ export const itemsModule = {
           <div class="form-grid">
             <div class="form-group">
               <label class="form-label"><i class="fa-solid fa-barcode"></i> Item / SKU Code *</label>
-              <input type="text" id="im-code" class="form-control" placeholder="e.g. CYL-142" value="${item ? item.ItemCode : ''}" required>
+              <input type="text" id="im-code" class="form-control" placeholder="e.g. CYL-142" value="${item ? utils.escapeHtml(item.ItemCode) : ''}" required>
             </div>
             <div class="form-group">
               <label class="form-label"><i class="fa-solid fa-box"></i> Item Name *</label>
               <input type="text" id="im-name" class="form-control" placeholder="e.g. 14.2 KG Domestic Refill" value="${item ? utils.escapeHtml(item.ItemName) : ''}" required>
             </div>
             <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-layer-group"></i> Category</label>
+              <label class="form-label"><i class="fa-solid fa-layer-group"></i> Category *</label>
               <select id="im-cat" class="form-select">
-                <option value="SALE" ${item && item.Category === 'SALE' ? 'selected' : ''}>SALE (Gas / Refill)</option>
-                <option value="SECURITY_DEPOSIT" ${item && item.Category === 'SECURITY_DEPOSIT' ? 'selected' : ''}>SECURITY DEPOSIT</option>
-                <option value="SERVICE" ${item && item.Category === 'SERVICE' ? 'selected' : ''}>SERVICE / CHARGES</option>
-                <option value="ACCESSORY" ${item && item.Category === 'ACCESSORY' ? 'selected' : ''}>ACCESSORY / APPLIANCE (Stove, Hose, etc.)</option>
-                <option value="EXPENSE" ${item && item.Category === 'EXPENSE' ? 'selected' : ''}>EXPENSE ITEM</option>
+                <optgroup label="Standard Categories">
+                  <option value="DOMESTIC" ${itemCat.toUpperCase() === 'DOMESTIC' ? 'selected' : ''}>DOMESTIC (Domestic LPG Refills)</option>
+                  <option value="COMMERCIAL" ${itemCat.toUpperCase() === 'COMMERCIAL' ? 'selected' : ''}>COMMERCIAL (Commercial LPG Refills & FTL)</option>
+                  <option value="Appliances" ${itemCat.toUpperCase() === 'APPLIANCES' ? 'selected' : ''}>Appliances (Stoves, Cooktops)</option>
+                  <option value="Accessories" ${itemCat.toUpperCase() === 'ACCESSORIES' ? 'selected' : ''}>Accessories (Suraksha Hose, Regulators)</option>
+                  <option value="SERVICE CHARGE" ${itemCat.toUpperCase() === 'SERVICE CHARGE' || itemCat.toUpperCase() === 'SERVICE' ? 'selected' : ''}>SERVICE CHARGE (Inspection, DGCC, Bluebook)</option>
+                  <option value="SECURITY DEPOSIT" ${itemCat.toUpperCase() === 'SECURITY DEPOSIT' || itemCat.toUpperCase() === 'SECURITY_DEPOSIT' ? 'selected' : ''}>SECURITY DEPOSIT (Cylinder & Regulator Deposits)</option>
+                </optgroup>
+                ${otherCustomCats.length ? `
+                <optgroup label="Existing Custom Categories">
+                  ${otherCustomCats.map(c => `<option value="${utils.escapeHtml(c)}" ${itemCat === c ? 'selected' : ''}>${utils.escapeHtml(c)}</option>`).join('')}
+                </optgroup>
+                ` : ''}
+                <optgroup label="Custom Category Option">
+                  <option value="__CUSTOM__" ${(!isStandard && !isKnownCustom) ? 'selected' : ''}>+ Create New Custom Category...</option>
+                </optgroup>
               </select>
+              <input type="text" id="im-custom-cat" class="form-control" placeholder="Enter custom category name (e.g. LUBRICANTS, STATIONERY)..." value="${(!isStandard && !isKnownCustom && itemCat) ? utils.escapeHtml(itemCat) : ''}" style="margin-top:6px; ${(!isStandard && !isKnownCustom && itemCat) ? '' : 'display:none;'}">
             </div>
             <div class="form-group">
               <label class="form-label"><i class="fa-solid fa-gas-pump"></i> Cylinder Variant</label>
               <select id="im-cyl" class="form-select">
-                <option value="">None (Accessory / Service)</option>
+                <option value="">None (Accessory / Service / Other)</option>
                 <option value="14.2 KG Domestic" ${item && item.CylinderType === '14.2 KG Domestic' ? 'selected' : ''}>14.2 KG Domestic</option>
                 <option value="19 KG Commercial" ${item && item.CylinderType === '19 KG Commercial' ? 'selected' : ''}>19 KG Commercial</option>
                 <option value="5 KG Commercial" ${item && item.CylinderType === '5 KG Commercial' ? 'selected' : ''}>5 KG Commercial</option>
                 <option value="5 KG Domestic" ${item && item.CylinderType === '5 KG Domestic' ? 'selected' : ''}>5 KG Domestic</option>
                 <option value="2 KG Commercial" ${item && item.CylinderType === '2 KG Commercial' ? 'selected' : ''}>2 KG Commercial</option>
+                <option value="10 KG Composite" ${item && item.CylinderType === '10 KG Composite' ? 'selected' : ''}>10 KG Composite (HP Navya)</option>
               </select>
             </div>
           </div>
@@ -493,33 +573,67 @@ export const itemsModule = {
       </div>
     `;
 
-    const result = await ui.formModal(html, isEdit ? `Edit Item: ${item.ItemName}` : 'Add Catalog Item', () => {
-      const code = document.getElementById('im-code').value.trim();
-      const name = document.getElementById('im-name').value.trim();
-      const rate = parseFloat(document.getElementById('im-rate').value);
-      if (!code || !name) {
-        Swal.showValidationMessage('Item Code and Name are required!');
-        return false;
+    const result = await ui.formModal(
+      html, 
+      isEdit ? `Edit Item: ${item.ItemName}` : 'Add Catalog Item', 
+      () => {
+        const code = document.getElementById('im-code')?.value.trim();
+        const name = document.getElementById('im-name')?.value.trim();
+        const rate = parseFloat(document.getElementById('im-rate')?.value);
+        if (!code || !name) {
+          const errEl = document.getElementById('app-form-modal-error-text');
+          if (errEl) errEl.textContent = 'Item Code and Name are required!';
+          return false;
+        }
+
+        let categoryVal = document.getElementById('im-cat')?.value;
+        if (categoryVal === '__CUSTOM__') {
+          const customName = document.getElementById('im-custom-cat')?.value.trim();
+          if (!customName) {
+            const errEl = document.getElementById('app-form-modal-error-text');
+            if (errEl) errEl.textContent = 'Please enter a name for the custom category!';
+            return false;
+          }
+          categoryVal = customName;
+        }
+
+        return {
+          ItemID: isEdit ? item.ItemID : null,
+          ItemCode: code,
+          ItemName: name,
+          Category: categoryVal,
+          CylinderType: document.getElementById('im-cyl')?.value || null,
+          Rate: rate || 0,
+          TaxPercent: parseFloat(document.getElementById('im-tax')?.value) || 0,
+          IsPackageItem: document.getElementById('im-is-pkg')?.checked ? 1 : 0,
+          OpeningStock: parseInt(document.getElementById('im-op-stock')?.value) || 0,
+          OpeningEmptyStock: parseInt(document.getElementById('im-op-empty')?.value) || 0,
+          Description: document.getElementById('im-desc')?.value.trim() || ''
+        };
+      },
+      {
+        onRender: (modal) => {
+          const catSelect = modal.querySelector('#im-cat');
+          const customInput = modal.querySelector('#im-custom-cat');
+          if (catSelect && customInput) {
+            catSelect.addEventListener('change', () => {
+              if (catSelect.value === '__CUSTOM__') {
+                customInput.style.display = 'block';
+                customInput.focus();
+              } else {
+                customInput.style.display = 'none';
+              }
+            });
+          }
+        }
       }
-      return {
-        ItemID: isEdit ? item.ItemID : null,
-        ItemCode: code,
-        ItemName: name,
-        Category: document.getElementById('im-cat').value,
-        CylinderType: document.getElementById('im-cyl').value,
-        Rate: rate || 0,
-        TaxPercent: parseFloat(document.getElementById('im-tax').value) || 0,
-        IsPackageItem: document.getElementById('im-is-pkg').checked ? 1 : 0,
-        OpeningStock: parseInt(document.getElementById('im-op-stock')?.value) || 0,
-        OpeningEmptyStock: parseInt(document.getElementById('im-op-empty')?.value) || 0,
-        Description: document.getElementById('im-desc').value.trim()
-      };
-    });
+    );
 
     if (result) {
       const res = await api('saveItem', result, { loaderMessage: 'Saving item...' });
       if (res.ok) {
         ui.success('Catalog item saved.');
+        await this.populateCategoryFilter();
         this.loadItems();
       }
     }

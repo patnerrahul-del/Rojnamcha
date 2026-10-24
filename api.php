@@ -260,6 +260,7 @@ try {
         case 'restoreItem':
         case 'adminUpdateRates':
         case 'getRateHistory':
+        case 'getCategories':
             $response = ItemController::handle($action, $payload, $currentUser);
             break;
 

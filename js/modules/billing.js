@@ -607,7 +607,7 @@ export const billingModule = {
           genBillBtn.style.borderColor = '#0284c7';
           genBillBtn.style.color = '#fff';
         }
-        if (!cart.length || (cart.length === 1 && cart[0].Category === 'SALE')) {
+        if (!cart.length || (cart.length === 1 && (cart[0].Category === 'SALE' || cart[0].Category === 'DOMESTIC' || cart[0].Category === 'COMMERCIAL'))) {
           this.loadSVPackagePreset('sbc_14');
         }
       } else {
@@ -951,7 +951,7 @@ export const billingModule = {
     const updateHpPreview = () => {
       const count = parseInt(hpCountIn?.value) || 0;
       let cylRate = 1042.00;
-      const saleItem = cart.find(it => it.Category === 'SALE' || (it.CylinderType && it.CylinderType.includes('14.2')));
+      const saleItem = cart.find(it => it.Category === 'SALE' || it.Category === 'DOMESTIC' || it.Category === 'COMMERCIAL' || (it.CylinderType && it.CylinderType.includes('14.2')));
       if (saleItem && saleItem.Rate) {
         cylRate = saleItem.Rate;
       }
@@ -1124,7 +1124,9 @@ async loadCustomers() {
   initCart() {
     // If empty, auto-add default 14.2 KG Domestic Refill
     if (availableItems.length && !cart.length) {
-      const defaultItem = availableItems.find(i => i.CylinderType === '14.2 KG Domestic' && i.Category === 'SALE');
+      const defaultItem = availableItems.find(i => i.CylinderType === '14.2 KG Domestic' && (i.Category === 'DOMESTIC' || i.Category === 'SALE')) 
+                       || availableItems.find(i => i.CylinderType === '14.2 KG Domestic') 
+                       || availableItems[0];
       if (defaultItem) {
         cart.push({
           ItemID: defaultItem.ItemID,
