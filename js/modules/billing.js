@@ -58,14 +58,14 @@ export const billingModule = {
         </div>
 
         <!-- Mode Navigation Tabs: Sale / SV Package / TV Out -->
-        <div class="pos-billing-mode-tabs" style="display:flex; gap:8px; background:var(--bg-body); padding:6px; border-radius:var(--radius-md); border:1px solid var(--border);">
-          <button type="button" class="btn btn-sm pos-mode-tab active" data-mode="sale" style="flex:1; padding:9px 12px; font-weight:700; border-radius:var(--radius-sm); font-size:13px; display:flex; align-items:center; justify-content:center; gap:8px;">
+        <div class="pos-billing-mode-tabs" style="display:flex; gap:10px; background:var(--bg-body); padding:8px; border-radius:var(--radius-md); border:1px solid var(--border);">
+          <button type="button" class="btn btn-sm pos-mode-tab active" data-mode="sale" style="flex:1; padding:10px 14px; font-weight:700; border-radius:var(--radius-sm); font-size:13px; display:flex; align-items:center; justify-content:center; gap:8px;">
             <i class="fa-solid fa-cart-shopping"></i> 1. Regular Sale / Refill
           </button>
-          <button type="button" class="btn btn-sm pos-mode-tab" data-mode="sv_package" style="flex:1; padding:9px 12px; font-weight:700; border-radius:var(--radius-sm); font-size:13px; display:flex; align-items:center; justify-content:center; gap:8px;">
+          <button type="button" class="btn btn-sm pos-mode-tab" data-mode="sv_package" style="flex:1; padding:10px 14px; font-weight:700; border-radius:var(--radius-sm); font-size:13px; display:flex; align-items:center; justify-content:center; gap:8px;">
             <i class="fa-solid fa-box-open"></i> 2. New SV Package Billing
           </button>
-          <button type="button" class="btn btn-sm pos-mode-tab" data-mode="tv_out" style="flex:1; padding:9px 12px; font-weight:700; border-radius:var(--radius-sm); font-size:13px; display:flex; align-items:center; justify-content:center; gap:8px;">
+          <button type="button" class="btn btn-sm pos-mode-tab" data-mode="tv_out" style="flex:1; padding:10px 14px; font-weight:700; border-radius:var(--radius-sm); font-size:13px; display:flex; align-items:center; justify-content:center; gap:8px;">
             <i class="fa-solid fa-arrow-right-from-bracket"></i> 3. TV Out Billing (Caution Money Return)
           </button>
         </div>
