@@ -248,8 +248,10 @@ export const utils = {
    */
   renderCompanyLogo(element, company, fallbackText = 'HP') {
     if (!element) return;
-    if (company && company.LogoBase64 && company.LogoMimeType) {
-      element.innerHTML = `<img src="data:${company.LogoMimeType};base64,${company.LogoBase64}" alt="${company.CompanyName || 'Logo'}" class="company-logo-img" style="max-width:100%; max-height:100%; object-fit:contain;">`;
+    const b64 = company ? (company.LogoBase64 || company.logobase64) : null;
+    const mime = company ? (company.LogoMimeType || company.logomimetype || 'image/png') : 'image/png';
+    if (b64) {
+      element.innerHTML = `<img src="data:${mime};base64,${b64}" alt="${company.CompanyName || 'Logo'}" class="company-logo-img" style="max-width:100%; max-height:100%; object-fit:contain;">`;
     } else {
       element.innerHTML = `<img src="favicon.svg" alt="HP Gas" class="company-logo-img" style="width:100%; height:100%; object-fit:contain; border-radius:50%;" onerror="this.outerHTML='<div class=\\'logo-fallback\\'>HP</div>'">`;
     }

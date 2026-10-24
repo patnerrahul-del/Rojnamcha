@@ -194,7 +194,10 @@ class AppPDOStatement extends PDOStatement {
         'changedat' => 'ChangedAt',
         'sessionid' => 'SessionID',
         'token' => 'Token',
-        'expiresat' => 'ExpiresAt'
+        'expiresat' => 'ExpiresAt',
+        'logobase64' => 'LogoBase64',
+        'logomimetype' => 'LogoMimeType',
+        'logoupdatedat' => 'LogoUpdatedAt'
     ];
 }
 

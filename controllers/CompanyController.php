@@ -18,6 +18,12 @@ class CompanyController {
                 if (!$company) {
                     return ['ok' => false, 'error' => ['code' => 'NOT_FOUND', 'message' => 'Company profile not found.']];
                 }
+                if (!empty($company['logobase64']) && empty($company['LogoBase64'])) {
+                    $company['LogoBase64'] = $company['logobase64'];
+                }
+                if (!empty($company['logomimetype']) && empty($company['LogoMimeType'])) {
+                    $company['LogoMimeType'] = $company['logomimetype'];
+                }
                 return ['ok' => true, 'data' => $company];
 
             case 'saveCompany':
@@ -25,7 +31,12 @@ class CompanyController {
                     return ['ok' => false, 'error' => ['code' => 'FORBIDDEN', 'message' => 'Admin authorization required.']];
                 }
 
-                $cId = (int)($payload['CompanyID'] ?? 1);
+                $cId = (int)($payload['CompanyID'] ?? 0);
+                if (!$cId) {
+                    $cId = (int)$db->query("SELECT CompanyID FROM companies LIMIT 1")->fetchColumn();
+                }
+                if (!$cId) $cId = 1;
+
                 $stmt = $db->prepare("SELECT * FROM companies WHERE CompanyID = ?");
                 $stmt->execute([$cId]);
                 $old = $stmt->fetch();
@@ -113,7 +124,11 @@ class CompanyController {
 
                 $base64Data = $payload['logoBase64'] ?? '';
                 $mimeType = $payload['mimeType'] ?? 'image/png';
-                $cId = (int)($payload['CompanyID'] ?? 1);
+                $cId = (int)($payload['CompanyID'] ?? 0);
+                if (!$cId) {
+                    $cId = (int)$db->query("SELECT CompanyID FROM companies LIMIT 1")->fetchColumn();
+                }
+                if (!$cId) $cId = 1;
 
                 if (empty($base64Data)) {
                     return ['ok' => false, 'error' => ['code' => 'VALIDATION', 'message' => 'No logo data provided.']];
@@ -124,27 +139,31 @@ class CompanyController {
                     return ['ok' => false, 'error' => ['code' => 'VALIDATION', 'message' => 'Invalid image format. PNG, JPEG, WEBP and SVG supported.']];
                 }
 
-                // Check size (must be under 900KB base64 to ensure safe MySQL packet transit)
-                if (strlen($base64Data) > 950000) {
-                    return ['ok' => false, 'error' => ['code' => 'VALIDATION', 'message' => 'Logo size exceeds safe limit. Please upload an image under 1MB.']];
+                // Check size (must be under 2MB base64)
+                if (strlen($base64Data) > 2800000) {
+                    return ['ok' => false, 'error' => ['code' => 'VALIDATION', 'message' => 'Logo size exceeds safe limit. Please upload an image under 2MB.']];
                 }
 
                 $now = date('Y-m-d H:i:s');
-                $stmt = $db->prepare("UPDATE companies SET LogoBase64 = ?, LogoMimeType = ?, LogoUpdatedAt = ?, UpdatedAt = ? WHERE CompanyID = ?");
+                $stmt = $db->prepare("UPDATE companies SET LogoBase64 = ?, LogoMimeType = ?, LogoUpdatedAt = ?, UpdatedAt = ? WHERE CompanyID = ? OR CompanyID = (SELECT CompanyID FROM companies LIMIT 1)");
                 $stmt->execute([$base64Data, $mimeType, $now, $now, $cId]);
 
                 Audit::log($user['userId'], $user['username'], 'LOGO_UPLOAD', 'company', (string)$cId, null, null, 'Company logo uploaded and updated');
 
-                return ['ok' => true, 'data' => ['logoBase64' => $base64Data, 'mimeType' => $mimeType], 'message' => 'Company logo uploaded successfully.'];
+                return ['ok' => true, 'data' => ['logoBase64' => $base64Data, 'LogoBase64' => $base64Data, 'mimeType' => $mimeType, 'LogoMimeType' => $mimeType], 'message' => 'Company logo uploaded successfully.'];
 
             case 'removeCompanyLogo':
                 if (!$user || $user['role'] !== 'ADMIN') {
                     return ['ok' => false, 'error' => ['code' => 'FORBIDDEN', 'message' => 'Admin authorization required.']];
                 }
 
-                $cId = (int)($payload['CompanyID'] ?? 1);
+                $cId = (int)($payload['CompanyID'] ?? 0);
+                if (!$cId) {
+                    $cId = (int)$db->query("SELECT CompanyID FROM companies LIMIT 1")->fetchColumn();
+                }
+                if (!$cId) $cId = 1;
                 $now = date('Y-m-d H:i:s');
-                $stmt = $db->prepare("UPDATE companies SET LogoBase64 = NULL, LogoMimeType = NULL, LogoUpdatedAt = ?, UpdatedAt = ? WHERE CompanyID = ?");
+                $stmt = $db->prepare("UPDATE companies SET LogoBase64 = NULL, LogoMimeType = NULL, LogoUpdatedAt = ?, UpdatedAt = ? WHERE CompanyID = ? OR CompanyID = (SELECT CompanyID FROM companies LIMIT 1)");
                 $stmt->execute([$now, $now, $cId]);
 
                 Audit::log($user['userId'], $user['username'], 'LOGO_REMOVE', 'company', (string)$cId, null, null, 'Company logo removed');

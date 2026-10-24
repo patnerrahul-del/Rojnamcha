@@ -50,9 +50,11 @@ export const printEngine = {
 
   getLogoHtml(isThermal = false) {
     const c = this.getCompany();
-    if (c.LogoBase64 && c.LogoMimeType) {
+    const b64 = c ? (c.LogoBase64 || c.logobase64) : null;
+    const mime = c ? (c.LogoMimeType || c.logomimetype || 'image/png') : 'image/png';
+    if (b64) {
       const cls = isThermal ? 'thermal-logo' : 'ds-logo';
-      return `<img src="data:${c.LogoMimeType};base64,${c.LogoBase64}" class="${cls}" alt="Agency Logo">`;
+      return `<img src="data:${mime};base64,${b64}" class="${cls}" alt="Agency Logo">`;
     }
 
     if (isThermal) {

@@ -238,14 +238,16 @@ export const companyModule = {
     try {
       const { base64, mimeType } = await utils.logoToBase64(file);
       const res = await api('uploadCompanyLogo', {
-        CompanyID: currentCompany ? currentCompany.CompanyID : 1,
+        CompanyID: currentCompany ? (currentCompany.CompanyID || currentCompany.companyid || 1) : 1,
         logoBase64: base64,
         mimeType
       }, { loaderMessage: 'Uploading logo...' });
 
       if (res.ok) {
         currentCompany.LogoBase64 = base64;
+        currentCompany.logobase64 = base64;
         currentCompany.LogoMimeType = mimeType;
+        currentCompany.logomimetype = mimeType;
         printEngine.setCompany(currentCompany);
 
         const box = document.getElementById('company-logo-preview-box');
@@ -262,10 +264,12 @@ export const companyModule = {
     const confirmed = await ui.confirm('Are you sure you want to remove the company logo? A standard fallback initials avatar will be used instead.', 'Remove Logo');
     if (!confirmed) return;
 
-    const res = await api('removeCompanyLogo', { CompanyID: currentCompany ? currentCompany.CompanyID : 1 }, { loaderMessage: 'Removing logo...' });
+    const res = await api('removeCompanyLogo', { CompanyID: currentCompany ? (currentCompany.CompanyID || currentCompany.companyid || 1) : 1 }, { loaderMessage: 'Removing logo...' });
     if (res.ok) {
       currentCompany.LogoBase64 = null;
+      currentCompany.logobase64 = null;
       currentCompany.LogoMimeType = null;
+      currentCompany.logomimetype = null;
       printEngine.setCompany(currentCompany);
 
       const box = document.getElementById('company-logo-preview-box');

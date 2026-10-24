@@ -110,6 +110,14 @@ try {
             $db = Database::getConnection();
             $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
             $comp = $db->query("SELECT * FROM companies LIMIT 1")->fetch();
+            if ($comp) {
+                if (!empty($comp['logobase64']) && empty($comp['LogoBase64'])) {
+                    $comp['LogoBase64'] = $comp['logobase64'];
+                }
+                if (!empty($comp['logomimetype']) && empty($comp['LogoMimeType'])) {
+                    $comp['LogoMimeType'] = $comp['logomimetype'];
+                }
+            }
             $response = [
                 'ok' => true,
                 'data' => [
