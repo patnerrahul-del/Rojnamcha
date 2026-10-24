@@ -146,15 +146,21 @@ class DashboardController {
                 $hawkers->execute([$startDate, $endDate]);
                 $topHawkers = $hawkers->fetchAll();
 
-                // 13. Sales Trend (Past 7 days)
+                // 13. Sales Trend (Past 7 days) in 1 single optimized query
+                $past7Date = date('Y-m-d', strtotime('-6 days'));
+                $trendStmt = $db->prepare("SELECT BillDate, COALESCE(SUM(TotalAmount), 0) as DayTotal 
+                    FROM bills 
+                    WHERE BillDate >= ? AND IsCancelled = 0 AND IsDeleted = 0 
+                    GROUP BY BillDate");
+                $trendStmt->execute([$past7Date]);
+                $dayMap = $trendStmt->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
+
                 $trendLabels = [];
                 $trendData = [];
                 for ($i = 6; $i >= 0; $i--) {
                     $d = date('Y-m-d', strtotime("-$i days"));
                     $trendLabels[] = date('d M', strtotime($d));
-                    $tStmt = $db->prepare("SELECT COALESCE(SUM(TotalAmount), 0) FROM bills WHERE BillDate = ? AND IsCancelled = 0 AND IsDeleted = 0");
-                    $tStmt->execute([$d]);
-                    $trendData[] = (float)$tStmt->fetchColumn();
+                    $trendData[] = (float)($dayMap[$d] ?? 0.0);
                 }
 
                 return [

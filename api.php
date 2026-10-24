@@ -48,8 +48,13 @@ require_once __DIR__ . '/controllers/SettingsController.php';
 require_once __DIR__ . '/controllers/AuditController.php';
 
 try {
-    // Ensure database and schema are initialized (fast check, skips heavy DDL if already initialized)
-    Database::ensureSchemaReady();
+    // High-performance schema check: only runs once per container instance lifecycle or on explicit action
+    $schemaReadyFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . '.schema_ready_v1';
+    $action = $_POST['action'] ?? ($_GET['action'] ?? '');
+    if ($action === 'setupDatabase' || !file_exists($schemaReadyFile)) {
+        Database::ensureSchemaReady();
+        @file_put_contents($schemaReadyFile, '1');
+    }
 
     // Read Input JSON or POST Body
     $rawInput = file_get_contents('php://input');
