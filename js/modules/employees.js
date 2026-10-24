@@ -109,59 +109,74 @@ export const employeeModule = {
     }
 
     employeeList = res.data;
-    tbody.innerHTML = employeeList.map(e => `
-      <tr style="${e.IsDeleted ? 'opacity:0.6;' : ''}">
-        <td><strong>${utils.escapeHtml(e.EmpCode)}</strong></td>
+    tbody.innerHTML = employeeList.map(e => {
+      const empId = e.EmpID ?? e.empid;
+      const empCode = e.EmpCode ?? e.empcode ?? `EMP-${empId}`;
+      const name = e.Name ?? e.name ?? 'Staff Member';
+      const role = e.Role ?? e.role ?? 'Hawker';
+      const mobile = e.Mobile ?? e.mobile ?? '-';
+      const joining = e.JoiningDate ?? e.joiningdate;
+      const salary = e.Salary ?? e.salary ?? 0;
+      const perTrip = e.PerDeliveryRate ?? e.perdeliveryrate ?? 0;
+      const status = e.Status ?? e.status ?? 'ACTIVE';
+      const photo = e.Photo ?? e.photo;
+      const emgContact = e.EmergencyContact ?? e.emergencycontact;
+      const isDeleted = e.IsDeleted ?? e.isdeleted;
+
+      return `
+      <tr style="${isDeleted ? 'opacity:0.6;' : ''}">
+        <td><strong>${utils.escapeHtml(empCode)}</strong></td>
         <td>
           <div style="display:flex; align-items:center; gap:10px;">
-            ${e.Photo ? `
-              <img src="${e.Photo}" alt="" style="width:36px; height:36px; border-radius:50%; object-fit:cover; border:1.5px solid #cbd5e1; flex-shrink:0;">
+            ${photo ? `
+              <img src="${photo}" alt="" style="width:36px; height:36px; border-radius:50%; object-fit:cover; border:1.5px solid #cbd5e1; flex-shrink:0;">
             ` : `
               <div style="width:36px; height:36px; border-radius:50%; background:#e2e8f0; color:#334155; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; flex-shrink:0;">
-                ${utils.escapeHtml((e.Name || 'E').charAt(0).toUpperCase())}
+                ${utils.escapeHtml((name || 'E').charAt(0).toUpperCase())}
               </div>
             `}
             <div>
-              <div style="font-weight:700; color:var(--text-main); font-size:13.5px;">${utils.escapeHtml(e.Name)}</div>
-              ${e.EmergencyContact ? `<div style="font-size:11px; color:var(--text-muted);"><i class="fa-solid fa-phone-volume"></i> ${utils.escapeHtml(e.EmergencyContact)}</div>` : ''}
+              <div style="font-weight:700; color:var(--text-main); font-size:13.5px;">${utils.escapeHtml(name)}</div>
+              ${emgContact ? `<div style="font-size:11px; color:var(--text-muted);"><i class="fa-solid fa-phone-volume"></i> ${utils.escapeHtml(emgContact)}</div>` : ''}
             </div>
           </div>
         </td>
-        <td><span class="badge ${e.Role === 'Hawker' ? 'badge-warning' : 'badge-info'}">${utils.escapeHtml(e.Role)}</span></td>
-        <td>${utils.escapeHtml(e.Mobile)}</td>
-        <td>${utils.formatDate(e.JoiningDate)}</td>
-        <td class="text-right num-font" style="font-weight:700;">${utils.formatCurrency(e.Salary)}</td>
-        <td class="text-right num-font">${utils.formatCurrency(e.PerDeliveryRate)} / trip</td>
+        <td><span class="badge ${role === 'Hawker' ? 'badge-warning' : 'badge-info'}">${utils.escapeHtml(role)}</span></td>
+        <td>${utils.escapeHtml(mobile)}</td>
+        <td>${utils.formatDate(joining)}</td>
+        <td class="text-right num-font" style="font-weight:700;">${utils.formatCurrency(salary)}</td>
+        <td class="text-right num-font">${utils.formatCurrency(perTrip)} / trip</td>
         <td class="text-center">
-          <span class="badge ${e.Status === 'ACTIVE' ? 'badge-success' : 'badge-secondary'}">${e.Status}</span>
+          <span class="badge ${status === 'ACTIVE' ? 'badge-success' : 'badge-secondary'}">${status}</span>
         </td>
         <td class="text-center" style="white-space:nowrap;">
-          <button class="btn btn-primary btn-sm idcard-emp-btn" data-id="${e.EmpID}" title="Generate Official ID Card" style="padding:4px 8px; margin-right:3px;">
+          <button class="btn btn-primary btn-sm idcard-emp-btn" data-id="${empId}" title="Generate Official ID Card" style="padding:4px 8px; margin-right:3px;">
             <i class="fa-solid fa-id-card"></i> ID Card
           </button>
-          <button class="btn btn-outline btn-sm docs-emp-btn" data-id="${e.EmpID}" title="KYC Documents Vault (Aadhaar, DL, Police, etc.)" style="padding:4px 8px; margin-right:3px;">
+          <button class="btn btn-outline btn-sm docs-emp-btn" data-id="${empId}" title="KYC Documents Vault (Aadhaar, DL, Police, etc.)" style="padding:4px 8px; margin-right:3px;">
             <i class="fa-solid fa-folder-open"></i> Docs
           </button>
-          ${!e.IsDeleted && auth.can('employees', 'update') ? `
-          <button class="btn btn-secondary btn-sm edit-emp-btn" data-id="${e.EmpID}" title="Edit Staff Profile" style="padding:4px 8px; margin-right:3px;">
+          ${!isDeleted && auth.can('employees', 'update') ? `
+          <button class="btn btn-secondary btn-sm edit-emp-btn" data-id="${empId}" title="Edit Staff Profile" style="padding:4px 8px; margin-right:3px;">
             <i class="fa-solid fa-pen-to-square"></i>
           </button>` : ''}
-          ${!e.IsDeleted && auth.can('employees', 'delete') ? `
-          <button class="btn btn-danger btn-sm del-emp-btn" data-id="${e.EmpID}" title="Delete" style="padding:4px 8px; margin-right:3px;">
+          ${!isDeleted && auth.can('employees', 'delete') ? `
+          <button class="btn btn-danger btn-sm del-emp-btn" data-id="${empId}" title="Delete" style="padding:4px 8px; margin-right:3px;">
             <i class="fa-solid fa-trash"></i>
           </button>` : ''}
-          ${e.IsDeleted && auth.getCurrentUser()?.role === 'ADMIN' ? `
-          <button class="btn btn-success btn-sm res-emp-btn" data-id="${e.EmpID}" title="Restore" style="padding:4px 8px;">
+          ${isDeleted && auth.getCurrentUser()?.role === 'ADMIN' ? `
+          <button class="btn btn-success btn-sm res-emp-btn" data-id="${empId}" title="Restore" style="padding:4px 8px;">
             <i class="fa-solid fa-rotate-left"></i>
           </button>` : ''}
         </td>
       </tr>
-    `).join('');
+      `;
+    }).join('');
 
     tbody.querySelectorAll('.idcard-emp-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const id = parseInt(e.currentTarget.dataset.id);
-        const obj = employeeList.find(x => x.EmpID === id);
+        const obj = employeeList.find(x => (x.EmpID ?? x.empid) === id);
         if (obj) printEngine.openPreview('id_card', obj, 'id_card');
       });
     });
@@ -169,7 +184,7 @@ export const employeeModule = {
     tbody.querySelectorAll('.docs-emp-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const id = parseInt(e.currentTarget.dataset.id);
-        const obj = employeeList.find(x => x.EmpID === id);
+        const obj = employeeList.find(x => (x.EmpID ?? x.empid) === id);
         if (obj) this.openDocumentsModal(obj);
       });
     });
@@ -177,7 +192,7 @@ export const employeeModule = {
     tbody.querySelectorAll('.edit-emp-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const id = parseInt(e.currentTarget.dataset.id);
-        const obj = employeeList.find(x => x.EmpID === id);
+        const obj = employeeList.find(x => (x.EmpID ?? x.empid) === id);
         if (obj) this.openEmployeeModal(obj);
       });
     });
