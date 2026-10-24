@@ -7,9 +7,208 @@
 require_once __DIR__ . '/config.php';
 
 /**
- * Extended PDO with transparent PostgreSQL lastInsertId support
+ * Extended PDOStatement with transparent column case normalization (PostgreSQL / SQLite / MySQL)
+ */
+class AppPDOStatement extends PDOStatement {
+    protected function __construct() {}
+
+    #[\ReturnTypeWillChange]
+    public function fetch(int $mode = PDO::FETCH_DEFAULT, int $cursorOrientation = PDO::FETCH_ORI_NEXT, int $cursorOffset = 0): mixed {
+        $row = parent::fetch($mode, $cursorOrientation, $cursorOffset);
+        if (is_array($row)) {
+            return self::normalizeRow($row);
+        }
+        return $row;
+    }
+
+    #[\ReturnTypeWillChange]
+    public function fetchAll(int $mode = PDO::FETCH_DEFAULT, mixed ...$args): array {
+        $rows = parent::fetchAll($mode, ...$args);
+        if (is_array($rows)) {
+            foreach ($rows as &$r) {
+                if (is_array($r)) {
+                    $r = self::normalizeRow($r);
+                }
+            }
+        }
+        return $rows;
+    }
+
+    private static function normalizeRow(array $row): array {
+        $res = $row;
+        foreach ($row as $k => $v) {
+            $lower = strtolower($k);
+            if (!isset($res[$lower])) {
+                $res[$lower] = $v;
+            }
+            if (isset(self::$canonicalMap[$lower])) {
+                $pascal = self::$canonicalMap[$lower];
+                if (!isset($res[$pascal])) {
+                    $res[$pascal] = $v;
+                }
+            }
+        }
+        return $res;
+    }
+
+    private static array $canonicalMap = [
+        'userid' => 'UserID',
+        'username' => 'Username',
+        'passwordhash' => 'PasswordHash',
+        'salt' => 'Salt',
+        'fullname' => 'FullName',
+        'email' => 'Email',
+        'mobile' => 'Mobile',
+        'role' => 'Role',
+        'status' => 'Status',
+        'forcepasswordchange' => 'ForcePasswordChange',
+        'failedattempts' => 'FailedAttempts',
+        'lockuntil' => 'LockUntil',
+        'lastloginat' => 'LastLoginAt',
+        'isdeleted' => 'IsDeleted',
+        'createdat' => 'CreatedAt',
+        'updatedat' => 'UpdatedAt',
+        'createdby' => 'CreatedBy',
+        'updatedby' => 'UpdatedBy',
+        'deletedby' => 'DeletedBy',
+        'deletedat' => 'DeletedAt',
+        'companyid' => 'CompanyID',
+        'companyname' => 'CompanyName',
+        'legalname' => 'LegalName',
+        'agencyname' => 'AgencyName',
+        'distributorcode' => 'DistributorCode',
+        'ecustcode' => 'ECustCode',
+        'hpclcode' => 'HPCLCode',
+        'addressline1' => 'AddressLine1',
+        'addressline2' => 'AddressLine2',
+        'village' => 'Village',
+        'block' => 'Block',
+        'district' => 'District',
+        'state' => 'State',
+        'pin' => 'PIN',
+        'phone' => 'Phone',
+        'alternatephone' => 'AlternatePhone',
+        'gstin' => 'GSTIN',
+        'pan' => 'PAN',
+        'licensenumber' => 'LicenseNumber',
+        'bankname' => 'BankName',
+        'bankaccount' => 'BankAccount',
+        'ifsc' => 'IFSC',
+        'upi' => 'UPI',
+        'ownername' => 'OwnerName',
+        'managername' => 'ManagerName',
+        'businesstype' => 'BusinessType',
+        'openingdate' => 'OpeningDate',
+        'customerid' => 'CustomerID',
+        'consumernumber' => 'ConsumerNumber',
+        'customername' => 'CustomerName',
+        'customertype' => 'CustomerType',
+        'svnumber' => 'SVNumber',
+        'connectiondate' => 'ConnectionDate',
+        'cylindertype' => 'CylinderType',
+        'cylinderquota' => 'CylinderQuota',
+        'securitydepositpaid' => 'SecurityDepositPaid',
+        'creditlimit' => 'CreditLimit',
+        'currentbalance' => 'CurrentBalance',
+        'currentbalancepaise' => 'CurrentBalancePaise',
+        'openingbalance' => 'OpeningBalance',
+        'openingbalancepaise' => 'OpeningBalancePaise',
+        'aadhaarlastfour' => 'AadhaarLastFour',
+        'billid' => 'BillID',
+        'billnumber' => 'BillNumber',
+        'workingdate' => 'WorkingDate',
+        'billdate' => 'BillDate',
+        'subtotal' => 'SubTotal',
+        'subtotalpaise' => 'SubTotalPaise',
+        'taxamount' => 'TaxAmount',
+        'taxamountpaise' => 'TaxAmountPaise',
+        'discountamount' => 'DiscountAmount',
+        'discountamountpaise' => 'DiscountAmountPaise',
+        'roundoff' => 'RoundOff',
+        'roundoffpaise' => 'RoundOffPaise',
+        'grandtotal' => 'GrandTotal',
+        'grandtotalpaise' => 'GrandTotalPaise',
+        'paymentmode' => 'PaymentMode',
+        'paymentstatus' => 'PaymentStatus',
+        'paidamount' => 'PaidAmount',
+        'paidamountpaise' => 'PaidAmountPaise',
+        'dueamount' => 'DueAmount',
+        'dueamountpaise' => 'DueAmountPaise',
+        'iscancelled' => 'IsCancelled',
+        'cancelledat' => 'CancelledAt',
+        'cancelledby' => 'CancelledBy',
+        'cancelreason' => 'CancelReason',
+        'syncstatus' => 'SyncStatus',
+        'itemid' => 'ItemID',
+        'itemcode' => 'ItemCode',
+        'itemname' => 'ItemName',
+        'category' => 'Category',
+        'rate' => 'Rate',
+        'ratepaise' => 'RatePaise',
+        'taxpercent' => 'TaxPercent',
+        'description' => 'Description',
+        'ispackageitem' => 'IsPackageItem',
+        'openingstock' => 'OpeningStock',
+        'openingemptystock' => 'OpeningEmptyStock',
+        'stockid' => 'StockID',
+        'movementtype' => 'MovementType',
+        'filledcylinders' => 'FilledCylinders',
+        'emptycylinders' => 'EmptyCylinders',
+        'defectivecylinders' => 'DefectiveCylinders',
+        'referencenumber' => 'ReferenceNumber',
+        'remarks' => 'Remarks',
+        'expenseid' => 'ExpenseID',
+        'expensedate' => 'ExpenseDate',
+        'expensecategory' => 'ExpenseCategory',
+        'amount' => 'Amount',
+        'amountpaise' => 'AmountPaise',
+        'vouchernumber' => 'VoucherNumber',
+        'paidto' => 'PaidTo',
+        'shiftid' => 'ShiftID',
+        'shiftname' => 'ShiftName',
+        'starttime' => 'StartTime',
+        'endtime' => 'EndTime',
+        'cashierid' => 'CashierID',
+        'cashiername' => 'CashierName',
+        'openingcash' => 'OpeningCash',
+        'closingcash' => 'ClosingCash',
+        'systemtotal' => 'SystemTotal',
+        'variance' => 'Variance',
+        'auditid' => 'AuditID',
+        'timestamp' => 'Timestamp',
+        'modulename' => 'ModuleName',
+        'action' => 'Action',
+        'recordid' => 'RecordID',
+        'oldval' => 'OldValue',
+        'newval' => 'NewValue',
+        'ipaddress' => 'IPAddress',
+        'useragent' => 'UserAgent',
+        'reason' => 'Reason',
+        'historyid' => 'HistoryID',
+        'oldrate' => 'OldRate',
+        'newrate' => 'NewRate',
+        'oldratepaise' => 'OldRatePaise',
+        'newratepaise' => 'NewRatePaise',
+        'changedby' => 'ChangedBy',
+        'changedbyname' => 'ChangedByName',
+        'changedat' => 'ChangedAt',
+        'sessionid' => 'SessionID',
+        'token' => 'Token',
+        'expiresat' => 'ExpiresAt'
+    ];
+}
+
+/**
+ * Extended PDO with transparent PostgreSQL lastInsertId support and case normalization
  */
 class AppPDO extends PDO {
+    public function __construct(string $dsn, ?string $username = null, ?string $password = null, ?array $options = null) {
+        parent::__construct($dsn, $username, $password, $options);
+        try {
+            $this->setAttribute(PDO::ATTR_STATEMENT_CLASS, ['AppPDOStatement']);
+        } catch (Throwable $e) {}
+    }
+
     #[\ReturnTypeWillChange]
     public function lastInsertId(?string $name = null) {
         $driver = $this->getAttribute(PDO::ATTR_DRIVER_NAME);

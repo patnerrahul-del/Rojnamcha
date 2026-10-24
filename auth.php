@@ -28,8 +28,22 @@ class Auth {
             ];
         }
 
+        // Extract fields with case-insensitive resilience (handles PostgreSQL lowercase keys)
+        $userId = (int)($user['UserID'] ?? ($user['userid'] ?? 0));
+        $usernameVal = $user['Username'] ?? ($user['username'] ?? $username);
+        $userStatus = strtoupper($user['Status'] ?? ($user['status'] ?? 'ACTIVE'));
+        $userLockUntil = $user['LockUntil'] ?? ($user['lockuntil'] ?? null);
+        $userSalt = $user['Salt'] ?? ($user['salt'] ?? '');
+        $userPasswordHash = $user['PasswordHash'] ?? ($user['passwordhash'] ?? '');
+        $userFailedAttempts = (int)($user['FailedAttempts'] ?? ($user['failedattempts'] ?? 0));
+        $userFullName = $user['FullName'] ?? ($user['fullname'] ?? 'System Administrator');
+        $userRole = strtoupper($user['Role'] ?? ($user['role'] ?? 'ADMIN'));
+        $userEmail = $user['Email'] ?? ($user['email'] ?? '');
+        $userMobile = $user['Mobile'] ?? ($user['mobile'] ?? '');
+        $userForcePwd = (int)($user['ForcePasswordChange'] ?? ($user['forcepasswordchange'] ?? 0));
+
         // Check if account is pending admin approval after password reset
-        if ($user['Status'] === 'PENDING_APPROVAL') {
+        if ($userStatus === 'PENDING_APPROVAL') {
             return [
                 'ok' => false,
                 'code' => 'PENDING_APPROVAL',
@@ -38,7 +52,7 @@ class Auth {
         }
 
         // Check if account is deactivated
-        if ($user['Status'] !== 'ACTIVE') {
+        if ($userStatus !== 'ACTIVE') {
             return [
                 'ok' => false,
                 'code' => 'FORBIDDEN',
@@ -49,8 +63,8 @@ class Auth {
         $now = date('Y-m-d H:i:s');
 
         // Check Lockout
-        if (!empty($user['LockUntil']) && $user['LockUntil'] > $now) {
-            $lockUntilTime = strtotime($user['LockUntil']);
+        if (!empty($userLockUntil) && $userLockUntil > $now) {
+            $lockUntilTime = strtotime($userLockUntil);
             $diffMins = max(1, ceil(($lockUntilTime - time()) / 60));
             return [
                 'ok' => false,
@@ -60,19 +74,19 @@ class Auth {
         }
 
         // Verify Salted SHA-256 Password Hash
-        $expectedHash = hash('sha256', $password . $user['Salt']);
-        $isMatch = hash_equals($user['PasswordHash'], $expectedHash);
+        $expectedHash = hash('sha256', $password . $userSalt);
+        $isMatch = hash_equals($userPasswordHash, $expectedHash);
 
         // Fallback for default admin credentials (accepts both admin123 and Admin@12345)
-        if (!$isMatch && strtolower($user['Username']) === 'admin' && ($password === 'admin123' || $password === 'Admin@12345')) {
+        if (!$isMatch && strtolower($usernameVal) === 'admin' && ($password === 'admin123' || $password === 'Admin@12345')) {
             $isMatch = true;
             $newSalt = bin2hex(random_bytes(16));
             $newHash = hash('sha256', $password . $newSalt);
-            $db->prepare("UPDATE users SET PasswordHash = ?, Salt = ?, FailedAttempts = 0, LockUntil = NULL WHERE UserID = ?")->execute([$newHash, $newSalt, $user['UserID']]);
+            $db->prepare("UPDATE users SET PasswordHash = ?, Salt = ?, FailedAttempts = 0, LockUntil = NULL WHERE UserID = ?")->execute([$newHash, $newSalt, $userId]);
         }
 
         if (!$isMatch) {
-            $failedAttempts = (int)$user['FailedAttempts'] + 1;
+            $failedAttempts = $userFailedAttempts + 1;
             $lockUntil = null;
 
             if ($failedAttempts >= MAX_FAILED_LOGIN_ATTEMPTS) {
@@ -80,9 +94,9 @@ class Auth {
             }
 
             $update = $db->prepare("UPDATE users SET FailedAttempts = ?, LockUntil = ? WHERE UserID = ?");
-            $update->execute([$failedAttempts, $lockUntil, $user['UserID']]);
+            $update->execute([$failedAttempts, $lockUntil, $userId]);
 
-            Audit::log($user['UserID'], $user['Username'], 'FAILED_LOGIN', 'users', (string)$user['UserID'], null, null, 'Invalid credentials attempt');
+            Audit::log($userId, $usernameVal, 'FAILED_LOGIN', 'users', (string)$userId, null, null, 'Invalid credentials attempt');
 
             $remaining = MAX_FAILED_LOGIN_ATTEMPTS - $failedAttempts;
             if ($remaining > 0) {
@@ -106,26 +120,26 @@ class Auth {
 
         try {
             $update = $db->prepare("UPDATE users SET FailedAttempts = 0, LockUntil = NULL, LastLoginAt = ? WHERE UserID = ?");
-            $update->execute([$now, $user['UserID']]);
+            $update->execute([$now, $userId]);
 
             // Insert Session for audit and tracking
             $sessStmt = $db->prepare("INSERT INTO sessions (Token, UserID, ExpiresAt, IPAddress, UserAgent, CreatedAt) VALUES (?, ?, ?, ?, ?, ?)");
-            $sessStmt->execute([$token, $user['UserID'], $expiresAt, $ip, $userAgent, $now]);
+            $sessStmt->execute([$token, $userId, $expiresAt, $ip, $userAgent, $now]);
         } catch (Throwable $e) {}
 
-        Audit::log($user['UserID'], $user['Username'], 'LOGIN', 'auth', (string)$user['UserID'], null, null, 'User logged in successfully');
+        Audit::log($userId, $usernameVal, 'LOGIN', 'auth', (string)$userId, null, null, 'User logged in successfully');
 
         return [
             'ok' => true,
             'token' => $token,
             'user' => [
-                'userId' => (int)$user['UserID'],
-                'username' => $user['Username'],
-                'fullName' => $user['FullName'],
-                'role' => $user['Role'],
-                'email' => $user['Email'],
-                'mobile' => $user['Mobile'],
-                'forcePasswordChange' => (int)$user['ForcePasswordChange'] === 1
+                'userId' => $userId,
+                'username' => $usernameVal,
+                'fullName' => $userFullName,
+                'role' => $userRole,
+                'email' => $userEmail,
+                'mobile' => $userMobile,
+                'forcePasswordChange' => $userForcePwd === 1
             ]
         ];
     }
