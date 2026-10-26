@@ -1530,7 +1530,10 @@ class Database {
             ['SD-REG', 'DPR Regulator Security Deposit', 'SECURITY DEPOSIT', NULL, 250.00, 25000, 0.0, 'Refundable regulator security deposit', 1],
             ['FEE-PASS', 'Blue Book / Passbook Fee', 'SERVICE CHARGE', NULL, 50.00, 5000, 0.0, 'Consumer booklet & documentation', 1],
             ['FEE-ADMIN', 'New Connection Admin & DGCC Charge', 'SERVICE CHARGE', NULL, 118.00, 11800, 18.0, 'Installation inspection & registration', 1],
-            ['SRV-INSP', 'Mandatory 5-Yr Safety Inspection', 'SERVICE CHARGE', NULL, 236.00, 23600, 18.0, 'Mandatory domestic checkup service', 0]
+            ['SRV-INSP', 'Mandatory 5-Yr Safety Inspection', 'SERVICE CHARGE', NULL, 236.00, 23600, 18.0, 'Mandatory domestic checkup service', 0],
+            ['SD-DIFF', 'Security Difference Deposit (Cylinder Diff)', 'SECURITY DEPOSIT', '14.2 KG Domestic', 750.00, 75000, 0.0, 'Differential deposit for older connections transfer', 0],
+            ['FEE-TRANSFER', 'Name Transfer Admin & DGCC Fee', 'SERVICE CHARGE', NULL, 118.00, 11800, 18.0, 'Transfer processing & DGCC documentation', 0],
+            ['FEE-IMPREST', 'Administrative Imprest / Stamp Fund', 'SERVICE CHARGE', NULL, 100.00, 10000, 0.0, 'Legal affidavit & documentation imprest charge', 0]
         ];
 
         foreach ($items as $it) {

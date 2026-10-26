@@ -97,6 +97,8 @@ export const billingModule = {
                   <datalist id="pos-cust-types">
                     <option value="DOMESTIC">
                     <option value="COMMERCIAL">
+                    <option value="NAME TRANSFER (DEATH)">
+                    <option value="NAME TRANSFER (GIFT)">
                     <option value="HAWKER DISPATCH">
                     <option value="HOME DELIVERY">
                     <option value="INSTITUTIONAL">
@@ -154,6 +156,12 @@ export const billingModule = {
               </button>
               <button type="button" class="btn btn-outline btn-sm sv-preset-btn" data-preset="commercial_19" style="font-weight:700;">
                 <i class="fa-solid fa-fire"></i> 19 KG Commercial
+              </button>
+              <button type="button" class="btn btn-outline btn-sm sv-preset-btn" data-preset="name_transfer_death" style="font-weight:700; color:#b91c1c; border-color:#fca5a5; background:#fff5f5;">
+                <i class="fa-solid fa-file-signature"></i> Name Transfer (Death Case)
+              </button>
+              <button type="button" class="btn btn-outline btn-sm sv-preset-btn" data-preset="name_transfer_gift" style="font-weight:700; color:#6d28d9; border-color:#ddd6fe; background:#f5f3ff;">
+                <i class="fa-solid fa-gift"></i> Name Transfer (Gift Case)
               </button>
               <button type="button" class="btn btn-outline btn-sm sv-preset-btn" data-preset="custom" style="font-weight:700; color:var(--text-muted);">
                 <i class="fa-solid fa-rotate-left"></i> Clear / Custom
@@ -630,6 +638,19 @@ export const billingModule = {
       b.classList.toggle('active', b.dataset.preset === presetKey);
     });
 
+    const custTypeIn = document.getElementById('pos-customer-type');
+    if (custTypeIn) {
+      if (presetKey === 'name_transfer_death') {
+        custTypeIn.value = 'NAME TRANSFER (DEATH)';
+      } else if (presetKey === 'name_transfer_gift') {
+        custTypeIn.value = 'NAME TRANSFER (GIFT)';
+      } else if (presetKey === 'commercial_19') {
+        custTypeIn.value = 'COMMERCIAL';
+      } else if (presetKey === 'sbc_14' || presetKey === 'dbc_14') {
+        custTypeIn.value = 'DOMESTIC';
+      }
+    }
+
     if (presetKey === 'custom') {
       cart = [];
       this.renderCart();
@@ -638,23 +659,35 @@ export const billingModule = {
 
     const templates = {
       sbc_14: [
-        { name: '14.2 KG Domestic Cylinder Security Deposit', cat: 'SECURITY_DEPOSIT', cyl: '14.2 KG Domestic', qty: 1, rate: 2200 },
-        { name: 'LPG Pressure Regulator Security Deposit', cat: 'SECURITY_DEPOSIT', cyl: '14.2 KG Domestic', qty: 1, rate: 250 },
-        { name: 'Suraksha LPG Hose Pipe (1.5M)', cat: 'EQUIPMENT', cyl: '14.2 KG Domestic', qty: 1, rate: 190 },
-        { name: 'Domestic Gas Consumer Card (DGCC Blue Book)', cat: 'SERVICE', cyl: '14.2 KG Domestic', qty: 1, rate: 59 },
-        { name: '14.2 KG Domestic Refill (First Cylinder Gas)', cat: 'CYLINDER', cyl: '14.2 KG Domestic', qty: 1, rate: 1042 }
+        { code: 'SD-CYL', name: '14.2 KG Domestic Cylinder Security Deposit', cat: 'SECURITY_DEPOSIT', cyl: '14.2 KG Domestic', qty: 1, rate: 2200 },
+        { code: 'SD-REG', name: 'LPG Pressure Regulator Security Deposit', cat: 'SECURITY_DEPOSIT', cyl: '14.2 KG Domestic', qty: 1, rate: 250 },
+        { code: 'HOSE-15', name: 'Suraksha LPG Hose Pipe (1.5M)', cat: 'EQUIPMENT', cyl: '14.2 KG Domestic', qty: 1, rate: 190 },
+        { code: 'FEE-PASS', name: 'Domestic Gas Consumer Card (DGCC Blue Book)', cat: 'SERVICE', cyl: '14.2 KG Domestic', qty: 1, rate: 59 },
+        { code: '14.2KG', name: '14.2 KG Domestic Refill (First Cylinder Gas)', cat: 'CYLINDER', cyl: '14.2 KG Domestic', qty: 1, rate: 1042 }
       ],
       dbc_14: [
-        { name: '14.2 KG Domestic Cylinder Security Deposit', cat: 'SECURITY_DEPOSIT', cyl: '14.2 KG Domestic', qty: 2, rate: 2200 },
-        { name: 'LPG Pressure Regulator Security Deposit', cat: 'SECURITY_DEPOSIT', cyl: '14.2 KG Domestic', qty: 1, rate: 250 },
-        { name: 'Suraksha LPG Hose Pipe (1.5M)', cat: 'EQUIPMENT', cyl: '14.2 KG Domestic', qty: 1, rate: 190 },
-        { name: 'Domestic Gas Consumer Card (DGCC Blue Book)', cat: 'SERVICE', cyl: '14.2 KG Domestic', qty: 1, rate: 59 },
-        { name: '14.2 KG Domestic Refill (First Cylinder Gas)', cat: 'CYLINDER', cyl: '14.2 KG Domestic', qty: 1, rate: 1042 }
+        { code: 'SD-CYL', name: '14.2 KG Domestic Cylinder Security Deposit', cat: 'SECURITY_DEPOSIT', cyl: '14.2 KG Domestic', qty: 2, rate: 2200 },
+        { code: 'SD-REG', name: 'LPG Pressure Regulator Security Deposit', cat: 'SECURITY_DEPOSIT', cyl: '14.2 KG Domestic', qty: 1, rate: 250 },
+        { code: 'HOSE-15', name: 'Suraksha LPG Hose Pipe (1.5M)', cat: 'EQUIPMENT', cyl: '14.2 KG Domestic', qty: 1, rate: 190 },
+        { code: 'FEE-PASS', name: 'Domestic Gas Consumer Card (DGCC Blue Book)', cat: 'SERVICE', cyl: '14.2 KG Domestic', qty: 1, rate: 59 },
+        { code: '14.2KG', name: '14.2 KG Domestic Refill (First Cylinder Gas)', cat: 'CYLINDER', cyl: '14.2 KG Domestic', qty: 1, rate: 1042 }
       ],
       commercial_19: [
-        { name: '19 KG Commercial Cylinder Security Deposit', cat: 'SECURITY_DEPOSIT', cyl: '19 KG Commercial', qty: 1, rate: 3500 },
-        { name: 'Commercial High Pressure / LOT Regulator', cat: 'EQUIPMENT', cyl: '19 KG Commercial', qty: 1, rate: 450 },
-        { name: '19 KG Commercial Refill (First Gas)', cat: 'CYLINDER', cyl: '19 KG Commercial', qty: 1, rate: 1850 }
+        { code: 'SD-19KG', name: '19 KG Commercial Cylinder Security Deposit', cat: 'SECURITY_DEPOSIT', cyl: '19 KG Commercial', qty: 1, rate: 3500 },
+        { code: 'REG-COM', name: 'Commercial High Pressure / LOT Regulator', cat: 'EQUIPMENT', cyl: '19 KG Commercial', qty: 1, rate: 450 },
+        { code: '19KG', name: '19 KG Commercial Refill (First Gas)', cat: 'CYLINDER', cyl: '19 KG Commercial', qty: 1, rate: 1850 }
+      ],
+      name_transfer_death: [
+        { code: 'FEE-TRANSFER', name: 'Name Transfer Admin & DGCC Fee', cat: 'SERVICE', cyl: '14.2 KG Domestic', qty: 1, rate: 118, tax: 18 },
+        { code: 'FEE-PASS', name: 'Blue Book / Passbook Fee', cat: 'SERVICE', cyl: '14.2 KG Domestic', qty: 1, rate: 50, tax: 0 },
+        { code: 'SD-DIFF', name: 'Security Difference Deposit (Cylinder Diff)', cat: 'SECURITY_DEPOSIT', cyl: '14.2 KG Domestic', qty: 1, rate: 750, tax: 0 },
+        { code: 'SRV-INSP', name: 'Mandatory 5-Yr Safety Inspection', cat: 'SERVICE', cyl: '14.2 KG Domestic', qty: 1, rate: 236, tax: 18 }
+      ],
+      name_transfer_gift: [
+        { code: 'FEE-TRANSFER', name: 'Name Transfer Admin & DGCC Fee', cat: 'SERVICE', cyl: '14.2 KG Domestic', qty: 1, rate: 118, tax: 18 },
+        { code: 'FEE-PASS', name: 'Blue Book / Passbook Fee', cat: 'SERVICE', cyl: '14.2 KG Domestic', qty: 1, rate: 50, tax: 0 },
+        { code: 'SD-DIFF', name: 'Security Difference Deposit (Cylinder Diff)', cat: 'SECURITY_DEPOSIT', cyl: '14.2 KG Domestic', qty: 1, rate: 750, tax: 0 },
+        { code: 'HOSE-15', name: 'Suraksha LPG Hose Pipe (1.5M)', cat: 'EQUIPMENT', cyl: '14.2 KG Domestic', qty: 1, rate: 190, tax: 18 }
       ]
     };
 
@@ -662,16 +695,19 @@ export const billingModule = {
     if (!tItems) return;
 
     cart = tItems.map(ti => {
-      const match = availableItems.find(ai => ai.ItemName && ai.ItemName.toLowerCase().includes(ti.name.toLowerCase().slice(0, 10)));
+      const match = availableItems.find(ai => 
+        (ti.code && ai.ItemCode && ai.ItemCode.toLowerCase() === ti.code.toLowerCase()) ||
+        (ai.ItemName && ai.ItemName.toLowerCase().includes(ti.name.toLowerCase().slice(0, 10)))
+      );
       return {
         ItemID: match ? match.ItemID : null,
-        ItemName: ti.name,
-        Category: ti.cat,
+        ItemName: match ? match.ItemName : ti.name,
+        Category: match ? match.Category : ti.cat,
         CylinderType: ti.cyl,
         Quantity: ti.qty,
         Rate: ti.rate,
         RatePaise: utils.toPaise(ti.rate),
-        TaxPercent: 0,
+        TaxPercent: ti.tax !== undefined ? ti.tax : (match && match.TaxPercent !== undefined ? match.TaxPercent : 0),
         Total: ti.qty * ti.rate
       };
     });
